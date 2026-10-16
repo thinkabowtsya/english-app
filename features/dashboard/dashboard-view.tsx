@@ -59,7 +59,7 @@ export function DashboardView() {
         </p>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <DailyTimer
           data={data}
           timer={timer}
@@ -88,7 +88,7 @@ function DashboardSkeleton() {
         <Skeleton className="h-4 w-48" />
         <Skeleton className="h-8 w-72" />
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Skeleton className="h-80 lg:col-span-2" />
         <Skeleton className="h-80" />
       </div>

@@ -39,7 +39,7 @@ export function MateriView() {
                   </div>
                   <ProgressIndicator completed={done} total={lessons.length} label="Progres level" />
                 </div>
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   {level.modules.map((mod) => (
                     <ModuleCard key={mod.id} module={mod} progress={getModuleProgress(mod, data.lessons)}>
                       {mod.lessons.map((lesson) => {

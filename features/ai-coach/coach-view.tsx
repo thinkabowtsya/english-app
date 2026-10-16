@@ -24,6 +24,7 @@ import {
   type ChatMessage,
 } from './chat-store';
 import { COACH_MODES, SCENARIO_SUGGESTIONS, getModeInfo } from './coach-modes';
+import { toPlainText } from '@/services/ai/format';
 
 /** Jumlah pesan terakhir yang dikirim sebagai konteks (server juga membatasi). */
 const CONTEXT_MESSAGES = 20;
@@ -176,7 +177,7 @@ export function CoachView() {
         </Alert>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_17rem]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_17rem]">
         <Card className="flex h-[70vh] min-h-[26rem] flex-col p-0 lg:h-[calc(100vh-11rem)]">
           <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
             <div className="min-w-0">
@@ -495,14 +496,9 @@ function MessageBubble({
   );
 }
 
-/** Menampilkan teks biasa; hanya **tebal** dari model yang dirender (tanpa HTML mentah). */
+/** Teks biasa tanpa tanda markdown (**tebal**, judul, dll.) agar mudah dibaca. */
 function FormattedText({ text }: { text: string }) {
-  const parts = text.split(/\*\*(.+?)\*\*/g);
-  return (
-    <>
-      {parts.map((part, i) => (i % 2 === 1 ? <strong key={i} className="font-semibold">{part}</strong> : part))}
-    </>
-  );
+  return <>{toPlainText(text)}</>;
 }
 
 function SavePhraseDialog({

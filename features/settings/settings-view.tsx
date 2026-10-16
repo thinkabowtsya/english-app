@@ -150,7 +150,7 @@ function SettingsForm({
     <form onSubmit={onSubmit} onChange={onEdit} noValidate className="space-y-4">
       <Card>
         <CardHeader title="Profil & target belajar" />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Nama panggilan" htmlFor="displayName" error={errors.displayName} hint="Untuk sapaan di dashboard. Opsional.">
             <input
               id="displayName"

@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { PhoneCall, PhoneOff, Mic, MicOff, Volume2, VolumeX, Sparkles, Shuffle, Check, RefreshCw, BookmarkPlus } from 'lucide-react';
-import { speakText, stopSpeaking, createSpeechRecognizer, isSpeechRecognitionSupported } from '@/lib/speech';
+import { PhoneCall, PhoneOff, Mic, MicOff, Volume2, VolumeX, Sparkles, Shuffle, Check, RefreshCw, BookmarkPlus, Hand } from 'lucide-react';
+import { stopSpeaking, createSpeechQueue, createSpeechRecognizer, isSpeechRecognitionSupported, type SpeechQueue } from '@/lib/speech';
+import { createId } from '@/lib/id';
+import { isLikelyEcho, shouldBargeIn, takeSentences } from '@/lib/voice-call';
 import { Correction } from '@/lib/types';
 import CorrectionCard from '@/components/chat/correction-card';
 import { useHydrated } from '@/lib/storage/hooks';
@@ -12,6 +14,14 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge, PageHeader } from '@/components/ui/feedback';
 import { SavePhraseDialog, SavedPhraseNotice, type PhraseTarget } from '@/components/review/save-phrase-dialog';
+
+interface CallLine {
+  id: string;
+  role: 'user' | 'ai';
+  text: string;
+  time: string;
+  correction?: Correction | null;
+}
 
 interface TopicSuggestion {
   id: string;
@@ -72,18 +82,45 @@ export default function VoiceCallStudioPage() {
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [transcriptHistory, setTranscriptHistory] = useState<{ role: 'user' | 'ai'; text: string; time: string; correction?: Correction | null }[]>([]);
+  const [transcriptHistory, setTranscriptHistory] = useState<CallLine[]>([]);
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [callSummaryScores, setCallSummaryScores] = useState<number[]>([]);
   const [saveTarget, setSaveTarget] = useState<PhraseTarget | null>(null);
   const [savedLabel, setSavedLabel] = useState<string | null>(null);
+  const [isAiThinking, setIsAiThinking] = useState(false);
+  const [autoInterrupt, setAutoInterrupt] = useState(true);
   const mounted = useHydrated();
 
+  // State panggilan yang dibaca callback mikrofon/stream (selalu nilai terbaru).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognizerRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  // Handler terbaru untuk kalimat yang diucapkan (dipakai callback speech recognizer).
+  const callActiveRef = useRef(false);
+  const mutedRef = useRef(false);
+  const speakerRef = useRef(true);
+  const autoInterruptRef = useRef(true);
+  const historyRef = useRef<CallLine[]>([]);
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const streamingRef = useRef(false);
+  const queueRef = useRef<SpeechQueue | null>(null);
   const spokenHandlerRef = useRef<(text: string) => void>(() => {});
+  const startMicRef = useRef<() => void>(() => {});
+
+  /** Mengubah riwayat lewat ref (untuk request) dan state (untuk tampilan) sekaligus. */
+  const updateHistory = useCallback((fn: (prev: CallLine[]) => CallLine[]) => {
+    historyRef.current = fn(historyRef.current);
+    setTranscriptHistory(historyRef.current);
+  }, []);
+
+  const getQueue = useCallback(() => {
+    queueRef.current ??= createSpeechQueue({
+      onStart: () => setIsAiSpeaking(true),
+      onIdle: () => {
+        if (!streamingRef.current) setIsAiSpeaking(false);
+      },
+    });
+    return queueRef.current;
+  }, []);
 
   // Timer Counter for active call duration
   useEffect(() => {
@@ -106,28 +143,56 @@ export default function VoiceCallStudioPage() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Start Voice Recognition Listener during call
-  const startMicListener = useCallback(() => {
-    if (!isSpeechRecognitionSupported() || isMuted) return;
+  /** Memotong AI: hentikan suara dan stream balasan yang sedang berjalan. */
+  const interruptAi = useCallback(() => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+    streamingRef.current = false;
+    queueRef.current?.cancel();
+    setIsAiSpeaking(false);
+    setIsAiThinking(false);
+  }, []);
 
-    if (recognizerRef.current) {
-      try { recognizerRef.current.stop(); } catch {}
+  const stopMicListener = useCallback(() => {
+    const rec = recognizerRef.current;
+    recognizerRef.current = null;
+    if (rec) {
+      try { rec.stop(); } catch {}
     }
+    setIsListening(false);
+  }, []);
+
+  /**
+   * Mikrofon tetap menyala selama panggilan (seperti telepon biasa). Jika browser
+   * menghentikannya (diam lama/jaringan), dinyalakan ulang otomatis.
+   */
+  const startMicListener = useCallback(() => {
+    if (!isSpeechRecognitionSupported() || mutedRef.current || !callActiveRef.current) return;
+    if (recognizerRef.current) return;
 
     const recognizer = createSpeechRecognizer({
       onResult: (text, isFinal) => {
-        setCurrentTranscript(text);
-        if (isFinal && text.trim()) {
-          spokenHandlerRef.current(text.trim());
+        const heard = text.trim();
+        const aiSpeech = queueRef.current?.spokenText() ?? '';
+        const aiBusy = streamingRef.current || (queueRef.current?.isBusy() ?? false);
+        // Abaikan gema suara AI sendiri yang tertangkap mikrofon.
+        if (aiBusy && isLikelyEcho(heard, aiSpeech)) return;
+        setCurrentTranscript(heard);
+        if (aiBusy && autoInterruptRef.current && shouldBargeIn(heard, aiSpeech)) interruptAi();
+        if (isFinal && heard) {
+          spokenHandlerRef.current(heard);
           setCurrentTranscript('');
         }
       },
       onError: (err) => {
-        console.warn('Call mic error:', err);
-        setIsListening(false);
+        if (err !== 'no-speech' && err !== 'aborted') console.warn('Call mic error:', err);
       },
       onEnd: () => {
+        if (recognizerRef.current !== recognizer) return;
+        recognizerRef.current = null;
         setIsListening(false);
+        // Nyalakan ulang selama panggilan masih aktif.
+        if (callActiveRef.current && !mutedRef.current) setTimeout(() => startMicRef.current(), 250);
       },
       lang: 'en-US'
     });
@@ -141,88 +206,130 @@ export default function VoiceCallStudioPage() {
         console.error('Failed to start call mic:', err);
       }
     }
-  }, [isMuted]);
+  }, [interruptAi]);
 
-  const stopMicListener = useCallback(() => {
-    if (recognizerRef.current) {
-      try { recognizerRef.current.stop(); } catch {}
-      recognizerRef.current = null;
-    }
-    setIsListening(false);
-  }, []);
+  useEffect(() => {
+    startMicRef.current = startMicListener;
+  }, [startMicListener]);
 
-  // Process User Spoken Sentence in Voice Call
-  const handleUserSpokenSentence = async (userText: string) => {
-    stopMicListener();
-
-    const timeNow = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setTranscriptHistory(prev => [...prev, { role: 'user', text: userText, time: timeNow }]);
-
-    setIsAiSpeaking(true);
-
-    const activeTopicContext = customTopic.trim()
+  const activeTopicContext = () =>
+    customTopic.trim()
       ? `User's custom topic choice: ${customTopic.trim()}`
       : selectedTopic
       ? `Topic: ${selectedTopic.title}`
       : 'Free open conversation about any topic the user wants to talk about.';
 
-    try {
-      const [corrRes, aiRes] = await Promise.all([
-        fetch('/api/correction', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: userText, userLevel: 'Intermediate' })
-        }).then(r => r.json()).catch(() => null),
-
-        fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: transcriptHistory.concat({ role: 'user', text: userText, time: timeNow }).map(m => ({
-              role: m.role === 'ai' ? 'assistant' : 'user',
-              content: m.text
-            })),
-            scenarioPrompt: `You are on a direct live phone call with the user. ${activeTopicContext}. Feel completely open to discuss ANY topic the user brings up. Keep replies concise (1-3 sentences max) so it feels like a real fast-paced phone call.`,
-            userLevel: 'Intermediate'
-          })
-        }).then(r => r.json()).catch(() => ({ reply: "That's awesome! Tell me more about that." }))
-      ]);
-
-      if (corrRes && typeof corrRes.score === 'number') {
+  /** Koreksi grammar berjalan di belakang — tidak menahan balasan suara AI. */
+  const fetchCorrection = (lineId: string, userText: string) => {
+    fetch('/api/correction', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: userText, userLevel: 'Intermediate' })
+    })
+      .then(r => (r.ok ? r.json() : null))
+      .then((corrRes: Correction | null) => {
+        if (!corrRes || typeof corrRes.score !== 'number') return;
         setCallSummaryScores(prev => [...prev, corrRes.score]);
-        setTranscriptHistory(prev =>
-          prev.map((item, idx) => idx === prev.length - 1 ? { ...item, correction: corrRes } : item)
-        );
+        updateHistory(prev => prev.map(item => (item.id === lineId ? { ...item, correction: corrRes } : item)));
+      })
+      .catch(() => {});
+  };
+
+  // Process User Spoken Sentence in Voice Call
+  const handleUserSpokenSentence = async (userText: string) => {
+    // Jika AI masih bicara/berpikir, pengguna sedang memotong: hentikan dulu.
+    interruptAi();
+
+    const timeNow = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const userLine: CallLine = { id: createId('u'), role: 'user', text: userText, time: timeNow() };
+    updateHistory(prev => [...prev, userLine]);
+    fetchCorrection(userLine.id, userText);
+
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
+    streamingRef.current = true;
+    setIsAiThinking(true);
+
+    const aiLine: CallLine = { id: createId('a'), role: 'ai', text: '', time: timeNow() };
+    let buffer = '';
+    let full = '';
+    const speak = (sentence: string) => {
+      if (speakerRef.current) getQueue().enqueue(sentence);
+    };
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          stream: true,
+          messages: historyRef.current.filter(m => m.text).slice(-30).map(m => ({
+            role: m.role === 'ai' ? 'assistant' : 'user',
+            content: m.text
+          })),
+          scenarioPrompt: `You are on a direct live phone call with the user. ${activeTopicContext()}. Feel completely open to discuss ANY topic the user brings up. Keep replies concise (1-3 short sentences) so it feels like a real fast-paced phone call. The user may interrupt you; that is normal.`,
+          userLevel: 'Intermediate'
+        })
+      });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+
+      updateHistory(prev => [...prev, aiLine]);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        if (!chunk) continue;
+        setIsAiThinking(false);
+        buffer += chunk;
+        full += chunk;
+        const shown = full.trim();
+        updateHistory(prev => prev.map(item => (item.id === aiLine.id ? { ...item, text: shown } : item)));
+        // Ucapkan setiap kalimat begitu lengkap, tanpa menunggu seluruh balasan.
+        const { sentences, rest } = takeSentences(buffer);
+        buffer = rest;
+        sentences.forEach(speak);
       }
-
-      const aiReplyText = aiRes?.reply || "I hear you! What else comes to mind regarding this?";
-
-      setTranscriptHistory(prev => [...prev, { role: 'ai', text: aiReplyText, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }]);
-
-      // Play AI Speech Output
-      if (isSpeakerOn) {
-        speakText(
-          aiReplyText,
-          () => {
-            setIsAiSpeaking(false);
-            startMicListener();
-          },
-          'en-US'
-        );
-      } else {
-        setIsAiSpeaking(false);
-        startMicListener();
+      speak(buffer);
+      if (!full.trim()) {
+        const fallback = 'Sorry, could you say that again?';
+        updateHistory(prev => prev.map(item => (item.id === aiLine.id ? { ...item, text: fallback } : item)));
+        speak(fallback);
       }
     } catch (err) {
+      if (controller.signal.aborted) {
+        // Dipotong pengguna: tandai balasan yang terpotong.
+        const cut = full.trim();
+        if (cut) updateHistory(prev => prev.map(item => (item.id === aiLine.id ? { ...item, text: `${cut} …` } : item)));
+        return;
+      }
       console.error('Call processing error:', err);
-      setIsAiSpeaking(false);
-      startMicListener();
+      const fallback = 'Sorry, the connection is a bit unstable. Could you repeat that?';
+      updateHistory(prev => [...prev.filter(item => item.id !== aiLine.id), { ...aiLine, text: fallback }]);
+      speak(fallback);
+    } finally {
+      if (streamAbortRef.current === controller) {
+        streamAbortRef.current = null;
+        streamingRef.current = false;
+        setIsAiThinking(false);
+        if (!queueRef.current?.isBusy()) setIsAiSpeaking(false);
+      }
     }
   };
 
   useEffect(() => {
     spokenHandlerRef.current = (text) => void handleUserSpokenSentence(text);
   });
+
+  // Hentikan semua saat halaman ditinggalkan.
+  useEffect(() => () => {
+    callActiveRef.current = false;
+    streamAbortRef.current?.abort();
+    queueRef.current?.cancel();
+    try { recognizerRef.current?.stop(); } catch {}
+  }, []);
 
   // Start Phone Call
   const handleStartCall = (presetTopic?: TopicSuggestion) => {
@@ -231,12 +338,14 @@ export default function VoiceCallStudioPage() {
 
     setCallState('calling');
     setCallSeconds(0);
+    historyRef.current = [];
     setTranscriptHistory([]);
     setCallSummaryScores([]);
     setSavedLabel(null);
 
     setTimeout(() => {
       setCallState('connected');
+      callActiveRef.current = true;
 
       let openerText = FREE_CALL_OPENER;
       if (customTopic.trim()) {
@@ -246,27 +355,41 @@ export default function VoiceCallStudioPage() {
       }
 
       const initialTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      updateHistory(() => [{ id: createId('a'), role: 'ai', text: openerText, time: initialTime }]);
 
-      setTranscriptHistory([{ role: 'ai', text: openerText, time: initialTime }]);
-      setIsAiSpeaking(true);
-
-      // AI speaks first on call connect!
-      speakText(
-        openerText,
-        () => {
-          setIsAiSpeaking(false);
-          startMicListener();
-        },
-        'en-US'
-      );
+      // AI membuka panggilan; mikrofon langsung aktif sehingga pengguna bisa langsung menyela.
+      if (speakerRef.current) getQueue().enqueue(openerText);
+      startMicListener();
     }, 1500);
   };
 
   // End Phone Call
   const handleEndCall = () => {
+    callActiveRef.current = false;
+    interruptAi();
     stopSpeaking();
     stopMicListener();
     setCallState('ended');
+  };
+
+  const toggleMute = () => {
+    const next = !mutedRef.current;
+    mutedRef.current = next;
+    setIsMuted(next);
+    if (next) stopMicListener();
+    else startMicListener();
+  };
+
+  const toggleSpeaker = () => {
+    const next = !speakerRef.current;
+    speakerRef.current = next;
+    setIsSpeakerOn(next);
+    if (!next) queueRef.current?.cancel();
+  };
+
+  const toggleAutoInterrupt = () => {
+    autoInterruptRef.current = !autoInterruptRef.current;
+    setAutoInterrupt(autoInterruptRef.current);
   };
 
   const handlePickRandomTopic = () => {
@@ -459,7 +582,7 @@ export default function VoiceCallStudioPage() {
             <div>
               <h3 className="text-lg font-semibold text-fg sm:text-xl">My Journey AI Tutor</h3>
               <p className="mt-0.5 text-xs font-medium text-success" aria-live="polite">
-                {isAiSpeaking ? 'AI sedang berbicara...' : isListening ? 'Mendengarkan suaramu...' : 'Panggilan aktif'}
+                {isAiSpeaking ? 'AI berbicara — kamu bisa langsung menyela' : isAiThinking ? 'AI sedang menjawab…' : isListening ? 'Mendengarkan suaramu...' : isMuted ? 'Mikrofon dimatikan' : 'Panggilan aktif'}
               </p>
               <span className="mt-2 inline-block rounded-full border border-line bg-surface-muted px-3.5 py-1 text-[11px] font-medium text-fg">
                 Topik: {customTopic ? customTopic : selectedTopic ? selectedTopic.title : 'Bebas Apa Saja'}
@@ -483,16 +606,34 @@ export default function VoiceCallStudioPage() {
             </div>
           </div>
 
+          {/* Menyela AI seperti telepon biasa */}
+          <div className="flex w-full flex-col items-center gap-2 pb-3">
+            {(isAiSpeaking || isAiThinking) && (
+              <Button size="sm" variant="secondary" onClick={interruptAi}>
+                <Hand className="h-4 w-4" />
+                Potong — giliranku bicara
+              </Button>
+            )}
+            <label className="flex cursor-pointer items-center gap-2 text-[11px] text-muted">
+              <input
+                type="checkbox"
+                checked={autoInterrupt}
+                onChange={toggleAutoInterrupt}
+                className="h-3.5 w-3.5 accent-[var(--accent)]"
+              />
+              Potong otomatis saat aku mulai bicara
+            </label>
+            <p className="text-center text-[11px] text-muted">
+              Tips: pakai headset/earphone agar suara AI tidak tertangkap mikrofon.
+            </p>
+          </div>
+
           {/* Call Action Controls (Mute, Speaker, Hangup) */}
           <div className="flex w-full items-center justify-center gap-6 border-t border-line pt-4">
             {/* Mute Button */}
             <button
               type="button"
-              onClick={() => {
-                setIsMuted(!isMuted);
-                if (!isMuted) stopMicListener();
-                else startMicListener();
-              }}
+              onClick={toggleMute}
               title={isMuted ? 'Nyalakan mikrofon' : 'Matikan mikrofon'}
               aria-label={isMuted ? 'Nyalakan mikrofon' : 'Matikan mikrofon'}
               aria-pressed={isMuted}
@@ -520,7 +661,7 @@ export default function VoiceCallStudioPage() {
             {/* Speaker Toggle */}
             <button
               type="button"
-              onClick={() => setIsSpeakerOn(!isSpeakerOn)}
+              onClick={toggleSpeaker}
               title={isSpeakerOn ? 'Matikan suara AI' : 'Nyalakan suara AI'}
               aria-label={isSpeakerOn ? 'Matikan suara AI' : 'Nyalakan suara AI'}
               aria-pressed={isSpeakerOn}
@@ -580,9 +721,9 @@ export default function VoiceCallStudioPage() {
               <p className="text-xs text-muted">Simpan frasa penting ke daftar review untuk diulang nanti.</p>
             </div>
             <div className="max-h-96 space-y-3 overflow-y-auto pr-1">
-              {transcriptHistory.map((item, idx) => (
+              {transcriptHistory.map((item) => (
                 <div
-                  key={idx}
+                  key={item.id}
                   className={cn(
                     'space-y-1 rounded-xl border p-3 text-xs',
                     item.role === 'ai' ? 'border-line bg-surface-muted text-fg' : 'border-accent/30 bg-accent-soft text-fg'

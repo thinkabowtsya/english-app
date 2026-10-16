@@ -2,7 +2,14 @@ import 'server-only';
 import { APIError } from 'groq-sdk';
 import { MAIN_MODEL, getGroq, modelOptions } from '@/lib/groq';
 import type { CoachRequest } from '@/types/ai';
-import { buildExplainSystemPrompt, buildReplySystemPrompt } from './prompts';
+import { tidyCheckFeedback, toPlainText } from './format';
+import {
+  buildCheckSystemPrompt,
+  buildCheckUserMessage,
+  buildExplainSystemPrompt,
+  buildReplySystemPrompt,
+  buildTutorSystemPrompt,
+} from './prompts';
 import { AiProviderError, type AiCoachService } from './types';
 
 /** Jumlah pesan terakhir yang dikirim sebagai konteks percakapan. */
@@ -14,10 +21,23 @@ export class GroqCoachService implements AiCoachService {
 
   async respond(request: CoachRequest): Promise<string> {
     const messages =
-      request.action === 'explain'
+      request.action === 'check'
+        ? [
+            { role: 'system' as const, content: buildCheckSystemPrompt(request.difficulty, request.open) },
+            {
+              role: 'user' as const,
+              content: buildCheckUserMessage(request.question, request.userAnswer, request.reference),
+            },
+          ]
+        : request.action === 'explain'
         ? [
             { role: 'system' as const, content: buildExplainSystemPrompt(request.difficulty) },
             { role: 'user' as const, content: request.target },
+          ]
+        : request.action === 'tutor'
+        ? [
+            { role: 'system' as const, content: buildTutorSystemPrompt(request.difficulty) },
+            ...request.messages.slice(-CONTEXT_MESSAGES),
           ]
         : [
             {
@@ -31,13 +51,17 @@ export class GroqCoachService implements AiCoachService {
       const completion = await getGroq().chat.completions.create({
         model: this.model,
         messages,
-        temperature: request.action === 'explain' ? 0.3 : 0.6,
-        max_tokens: 1_000,
-        ...modelOptions(),
+        temperature: request.action === 'reply' ? 0.6 : request.action === 'tutor' ? 0.4 : 0.2,
+        // Jawaban tutor bisa berupa penjelasan panjang.
+        // Token reasoning ikut dihitung dalam max_tokens.
+        max_tokens: request.action === 'tutor' ? 4_000 : 1_000,
+        ...modelOptions(request.action === 'tutor' ? 'medium' : 'low'),
       });
       const text = completion.choices[0]?.message?.content?.trim();
       if (!text) throw new AiProviderError('Respons kosong dari Groq', null);
-      return text;
+      // Hilangkan **tebal** dan format markdown lain agar mudah dibaca.
+      const plain = toPlainText(text);
+      return request.action === 'check' ? tidyCheckFeedback(plain) : plain;
     } catch (error) {
       if (error instanceof AiProviderError) throw error;
       if (error instanceof APIError) {

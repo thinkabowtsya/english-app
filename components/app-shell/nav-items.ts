@@ -1,4 +1,13 @@
-import { BookOpen, ChartLine, Dumbbell, LayoutDashboard, MessagesSquare, Settings, type LucideIcon } from 'lucide-react';
+import {
+  BookOpen,
+  ChartLine,
+  Dumbbell,
+  GraduationCap,
+  LayoutDashboard,
+  MessagesSquare,
+  Settings,
+  type LucideIcon,
+} from 'lucide-react';
 
 export interface NavItem {
   href: string;
@@ -26,6 +35,7 @@ export const NAV_ITEMS: NavItem[] = [
     icon: MessagesSquare,
     also: ['/call', '/practice'],
   },
+  { href: '/tutor', label: 'Tanya Tutor', shortLabel: 'Tutor', icon: GraduationCap },
   { href: '/progres', label: 'Progres Saya', shortLabel: 'Progres', icon: ChartLine },
   { href: '/pengaturan', label: 'Pengaturan', shortLabel: 'Pengaturan', icon: Settings },
 ];

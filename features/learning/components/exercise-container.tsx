@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Badge, EmptyState } from '@/components/ui/feedback';
 import { cn } from '@/lib/utils';
 import type { ActivityType, LessonActivity } from '@/types/curriculum';
+import { ExerciseItemList } from './exercise-item-list';
 
 const TYPE_LABEL: Record<ActivityType, string> = {
   exercise: 'Latihan',
@@ -20,6 +21,7 @@ export function ExerciseContainer({
   description,
   children,
   className,
+  seed = 0,
 }: {
   activity?: LessonActivity;
   title?: string;
@@ -27,6 +29,8 @@ export function ExerciseContainer({
   description?: ReactNode;
   children?: ReactNode;
   className?: string;
+  /** Benih pengacakan soal. */
+  seed?: number;
 }) {
   const resolvedType = activity?.type ?? type ?? 'exercise';
   const resolvedTitle = activity?.title ?? title ?? TYPE_LABEL[resolvedType];
@@ -42,22 +46,7 @@ export function ExerciseContainer({
         <p className="mb-3 text-sm text-muted">{activity?.instructions ?? description}</p>
       )}
       {activity?.items?.length ? (
-        <ol className="space-y-3">
-          {activity.items.map((item, i) => (
-            <li key={i} className="text-sm">
-              <p className="text-fg">
-                <span className="mr-1.5 tabular-nums text-muted">{i + 1}.</span>
-                {item.prompt}
-              </p>
-              <details className="mt-1 ml-5 text-xs text-muted">
-                <summary className="cursor-pointer text-accent select-none">Lihat jawaban</summary>
-                <p className="mt-1 font-medium text-fg">{item.answer}</p>
-                {item.alternatives?.length ? <p className="mt-0.5">Juga benar: {item.alternatives.join(' / ')}</p> : null}
-                {item.explanation && <p className="mt-0.5">{item.explanation}</p>}
-              </details>
-            </li>
-          ))}
-        </ol>
+        <ExerciseItemList activity={activity} seed={seed} />
       ) : hasItems ? (
         children
       ) : (

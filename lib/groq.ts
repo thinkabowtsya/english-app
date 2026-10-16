@@ -14,10 +14,11 @@ export const MAIN_MODEL = process.env.GROQ_MODEL?.trim() || 'openai/gpt-oss-120b
 
 /**
  * Opsi tambahan per model. Model reasoning gpt-oss memakai effort rendah agar respons
- * cepat dan token reasoning tidak menghabiskan batas output.
+ * cepat dan token reasoning tidak menghabiskan batas output; Tanya Tutor memakai 'medium'
+ * karena ketepatan penjelasan lebih penting daripada kecepatan.
  */
-export function modelOptions(): { reasoning_effort?: 'low' } {
-  return MAIN_MODEL.startsWith('openai/gpt-oss') ? { reasoning_effort: 'low' } : {};
+export function modelOptions(effort: 'low' | 'medium' = 'low'): { reasoning_effort?: 'low' | 'medium' } {
+  return MAIN_MODEL.startsWith('openai/gpt-oss') ? { reasoning_effort: effort } : {};
 }
 
 export class AiNotConfiguredError extends Error {

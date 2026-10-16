@@ -58,6 +58,10 @@ export interface LessonActivity {
   type: ActivityType;
   title: string;
   instructions?: string;
+  /** Soal terbuka (mis. produksi kalimat): tidak ada satu jawaban benar; kunci hanya contoh. */
+  open?: boolean;
+  /** Jumlah soal yang ditampilkan dari bank; sisanya muncul lewat "Soal lain". Default: semua. */
+  pickCount?: number;
   items?: ExerciseItem[];
 }
 
@@ -75,6 +79,10 @@ export interface LessonContent {
   reviewRecommendation?: string;
 }
 
+/** Isi materi per ID materi. Hanya dimuat di server (lib/curriculum-content.ts). */
+export type LessonContentMap = Record<string, LessonContent>;
+
+/** Metadata materi (ringan) — dipakai di seluruh UI. Isi lengkap tidak disertakan. */
 export interface Lesson {
   id: string;
   moduleId: string;
@@ -84,7 +92,6 @@ export interface Lesson {
   /** ID materi yang harus selesai dulu. Jika kosong, dipakai materi sebelumnya dalam urutan. */
   prerequisites?: string[];
   contentStatus: ContentStatus;
-  content: LessonContent | null;
 }
 
 export interface CurriculumModule {

@@ -4,6 +4,7 @@ import { MAIN_MODEL, getGroq, isGroqConfigured, modelOptions } from '@/lib/groq'
 import { jsonError, readJsonBody } from '@/lib/server/http';
 import { requireUser } from '@/lib/server/auth';
 import { enforceAiRateLimit } from '@/lib/server/rate-limit';
+import { toPlainText } from '@/services/ai/format';
 
 /** Endpoint lama untuk /practice dan /call. Format respons dipertahankan. */
 
@@ -22,6 +23,8 @@ const schema = z.object({
   scenarioPrompt: z.string().max(1_000).optional(),
   userLevel: z.string().max(40).default('Intermediate'),
   action: z.enum(['chat', 'translate']).default('chat'),
+  /** true: balasan dikirim bertahap (text/plain) agar panggilan suara bisa bicara per kalimat. */
+  stream: z.boolean().default(false),
 });
 
 export async function POST(req: Request) {
@@ -34,7 +37,7 @@ export async function POST(req: Request) {
   if (!body.ok) return body.response;
   if (!isGroqConfigured()) return jsonError(503, 'AI belum dikonfigurasi di server.');
 
-  const { messages, scenarioPrompt, userLevel, action } = body.data;
+  const { messages, scenarioPrompt, userLevel, action, stream } = body.data;
   const groq = getGroq();
 
   try {
@@ -53,7 +56,7 @@ export async function POST(req: Request) {
         temperature: 0.2,
         ...modelOptions(),
       });
-      return NextResponse.json({ translation: completion.choices[0]?.message?.content || '' });
+      return NextResponse.json({ translation: toPlainText(completion.choices[0]?.message?.content || '') });
     }
 
     const systemInstruction = `You are "My Journey English Coach", an empathetic, highly engaging, native English conversational tutor.
@@ -66,25 +69,61 @@ Guidelines:
 3. Ask open-ended questions to encourage the user to speak/write more.
 4. Do NOT explicitly correct grammar inside your conversational reply unless asked; grammar analysis will be handled separately in the UI. Focus on keeping the conversation engaging.`;
 
+    const chatMessages = [
+      { role: 'system' as const, content: systemInstruction },
+      ...messages
+        .filter((m) => m.content.trim().length > 0)
+        .slice(-CONTEXT_MESSAGES)
+        .map((m) => ({
+          role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+          content: m.content,
+        })),
+    ];
+
+    if (stream) {
+      const completionStream = await groq.chat.completions.create({
+        model: MAIN_MODEL,
+        messages: chatMessages,
+        temperature: 0.7,
+        max_tokens: 800,
+        stream: true,
+        ...modelOptions(),
+      });
+      const encoder = new TextEncoder();
+      const body = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          try {
+            for await (const chunk of completionStream) {
+              // Teks untuk diucapkan: tanpa tanda markdown.
+              const text = (chunk.choices[0]?.delta?.content ?? '').replace(/[*#`_]/g, '');
+              if (text) controller.enqueue(encoder.encode(text));
+            }
+          } catch (error) {
+            console.error('[api/chat stream]', error instanceof Error ? error.message : error);
+          } finally {
+            controller.close();
+          }
+        },
+        cancel() {
+          // Pengguna memotong AI: hentikan stream ke Groq.
+          completionStream.controller.abort();
+        },
+      });
+      return new Response(body, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+      });
+    }
+
     const completion = await groq.chat.completions.create({
       model: MAIN_MODEL,
-      messages: [
-        { role: 'system', content: systemInstruction },
-        ...messages
-          .filter((m) => m.content.trim().length > 0)
-          .slice(-CONTEXT_MESSAGES)
-          .map((m) => ({
-            role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
-            content: m.content,
-          })),
-      ],
+      messages: chatMessages,
       temperature: 0.7,
       max_tokens: 800,
       ...modelOptions(),
     });
 
     const aiReply = completion.choices[0]?.message?.content || "That's interesting! Tell me more about it.";
-    return NextResponse.json({ reply: aiReply });
+    return NextResponse.json({ reply: toPlainText(aiReply) });
   } catch (error: unknown) {
     console.error('[api/chat]', error instanceof Error ? error.message : error);
     return jsonError(502, 'Layanan AI sedang tidak dapat dihubungi. Coba lagi nanti.');

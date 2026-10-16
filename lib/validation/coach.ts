@@ -16,6 +16,12 @@ const message = z.object({
   content: z.string().trim().min(1).max(COACH_LIMITS.messageChars),
 });
 
+const conversation = z
+  .array(message)
+  .min(1)
+  .max(COACH_LIMITS.maxMessages)
+  .refine((list) => list[list.length - 1]?.role === 'user', 'Pesan terakhir harus dari pengguna');
+
 export const coachRequestSchema = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('reply'),
@@ -28,15 +34,24 @@ export const coachRequestSchema = z.discriminatedUnion('action', [
       // Skenario masuk ke system prompt: satukan jadi satu baris.
       .transform((s) => s.replace(/\s+/g, ' '))
       .optional(),
-    messages: z
-      .array(message)
-      .min(1)
-      .max(COACH_LIMITS.maxMessages)
-      .refine((list) => list[list.length - 1]?.role === 'user', 'Pesan terakhir harus dari pengguna'),
+    messages: conversation,
+  }),
+  z.object({
+    action: z.literal('tutor'),
+    difficulty,
+    messages: conversation,
   }),
   z.object({
     action: z.literal('explain'),
     difficulty,
     target: z.string().trim().min(1).max(COACH_LIMITS.messageChars),
+  }),
+  z.object({
+    action: z.literal('check'),
+    difficulty,
+    question: z.string().trim().min(1).max(COACH_LIMITS.messageChars),
+    userAnswer: z.string().trim().min(1).max(COACH_LIMITS.messageChars),
+    reference: z.array(z.string().trim().min(1).max(500)).min(1).max(6),
+    open: z.boolean(),
   }),
 ]) satisfies z.ZodType<CoachRequest>;

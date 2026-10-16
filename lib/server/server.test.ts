@@ -44,6 +44,13 @@ describe('readJsonBody + coachRequestSchema', () => {
     if (result.ok && result.data.action === 'reply') expect(result.data.scenario).toBe('Job interview');
   });
 
+  it('menerima request tutor dan menolak jika pesan terakhir bukan dari pengguna', async () => {
+    const tutor = { action: 'tutor', difficulty: 'beginner', messages: [{ role: 'user', content: 'Make vs do?' }] };
+    expect((await readJsonBody(jsonRequest(JSON.stringify(tutor)), coachRequestSchema, 64 * 1024)).ok).toBe(true);
+    const bad = { ...tutor, messages: [...tutor.messages, { role: 'assistant', content: 'Answer' }] };
+    expect((await readJsonBody(jsonRequest(JSON.stringify(bad)), coachRequestSchema, 64 * 1024)).ok).toBe(false);
+  });
+
   it('menolak body terlalu besar', async () => {
     const big = JSON.stringify({ ...valid, messages: [{ role: 'user', content: 'x'.repeat(5000) }] });
     const result = await readJsonBody(jsonRequest(big), coachRequestSchema, 1024);

@@ -25,6 +25,28 @@ export class MockCoachService implements AiCoachService {
 
   async respond(request: CoachRequest): Promise<string> {
     await new Promise((resolve) => setTimeout(resolve, 500));
+    if (request.action === 'check') {
+      return `${NOTICE}
+
+Contoh format penilaian:
+Benar / Hampir benar / Belum tepat
+[penjelasan singkat untuk jawaban "${quote(request.userAnswer, 80)}"]
+Versi yang benar: ${request.reference[0]}`;
+    }
+    if (request.action === 'tutor') {
+      const last = request.messages[request.messages.length - 1]?.content ?? '';
+      return `${NOTICE}
+
+Contoh format jawaban tutor untuk: "${quote(last)}"
+Intinya:
+- [penjelasan konsep dan alasannya]
+Contoh:
+- "[kalimat dari situasi nyata]"
+Kesalahan umum:
+- [kesalahan yang sering dibuat]
+Latihan:
+- [tugas kecil untuk dicoba]`;
+    }
     if (request.action === 'explain') {
       return `${NOTICE}\n\nPenjelasan grammar untuk: "${quote(request.target)}"\n- Pola: [pola kalimat]\n- Fungsi: [kapan dipakai]\n- Contoh: [1–2 contoh kalimat]`;
     }

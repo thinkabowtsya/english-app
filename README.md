@@ -44,10 +44,13 @@ Tanpa variabel Supabase, aplikasi tetap jalan dalam mode tamu.
 
 ## 4. Menjalankan migrasi database
 
-File migrasi: `supabase/migrations/20261016120000_learning_data.sql` (aman dijalankan ulang, tidak menghapus data).
+File migrasi (jalankan berurutan; semuanya aman dijalankan ulang, tidak menghapus data):
+
+- `supabase/migrations/20261016120000_learning_data.sql`
+- `supabase/migrations/20261016150000_tutor_sessions.sql` (riwayat Tanya Tutor)
 
 1. Buka *SQL Editor → New query* di dashboard Supabase.
-2. Tempel seluruh isi file migrasi, klik **Run**. Supabase akan memperingatkan "destructive operations" karena ada
+2. Tempel seluruh isi tiap file migrasi, klik **Run**. Supabase akan memperingatkan "destructive operations" karena ada
    `DROP POLICY/TRIGGER IF EXISTS` — itu hanya untuk membuat ulang policy/trigger milik migrasi ini, bukan data.
 
 Tabel yang dibuat (semua dengan RLS aktif, akses hanya untuk role `authenticated` dan hanya baris milik sendiri
@@ -59,6 +62,7 @@ lewat `user_id = auth.uid()`):
 | `learning_progress` | Progres per materi (unik per `user_id + item_id`), status review | select, insert, update, delete |
 | `learning_settings` | Target harian, durasi sesi default, nama, tingkat AI | select, insert, update |
 | `review_items` | Materi/pola/frasa yang perlu diulang | select, insert, update, delete |
+| `tutor_sessions` | Riwayat sesi Tanya Tutor (pesan disimpan sebagai JSON), disimpan saat menekan "Sesi baru" | select, insert, update, delete |
 
 ## 5. Membuat akun pribadi pertama
 

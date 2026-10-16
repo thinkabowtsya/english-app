@@ -104,7 +104,8 @@ export function MobileBottomNav() {
   return (
     <nav
       aria-label="Navigasi utama"
-      className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+      className="fixed inset-x-0 bottom-0 z-30 grid border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
     >
       {items.map((item) => {
         const active = isNavActive(item, pathname);
@@ -115,7 +116,7 @@ export function MobileBottomNav() {
             href={item.href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'flex flex-col items-center gap-1 py-2 text-[10px]',
+              'flex min-w-0 flex-col items-center gap-1 truncate py-2 text-[10px]',
               active ? 'font-medium text-accent' : 'text-muted',
             )}
           >

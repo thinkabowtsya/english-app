@@ -17,10 +17,28 @@ export type CoachRequest =
       messages: CoachMessage[];
     }
   | {
+      /** Tanya Tutor: tanya jawab bebas dengan tutor bahasa Inggris. */
+      action: 'tutor';
+      difficulty: Difficulty;
+      messages: CoachMessage[];
+    }
+  | {
       action: 'explain';
       difficulty: Difficulty;
       /** Teks yang ingin dijelaskan grammar-nya. */
       target: string;
+    }
+  | {
+      /** Menilai jawaban latihan materi dan menjelaskannya. */
+      action: 'check';
+      difficulty: Difficulty;
+      /** Instruksi + soal. */
+      question: string;
+      userAnswer: string;
+      /** Kunci jawaban / contoh jawaban. */
+      reference: string[];
+      /** Soal terbuka (produksi kalimat): kunci hanya contoh, bukan satu-satunya jawaban benar. */
+      open: boolean;
     };
 
 export interface CoachResponse {

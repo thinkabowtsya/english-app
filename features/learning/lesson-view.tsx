@@ -18,11 +18,21 @@ import {
 } from '@/lib/storage/actions';
 import { useActiveTimer, useAppData, useNow } from '@/lib/storage/hooks';
 import { getRemainingMs } from '@/lib/timer';
+import type { LessonContent as LessonContentData } from '@/types/curriculum';
 import { LessonContent } from './components/lesson-content';
 import { LessonHeader } from './components/lesson-header';
 import { ReviewReminder } from './components/review-reminder';
 
-export function LessonView({ lessonId }: { lessonId: string }) {
+export function LessonView({
+  lessonId,
+  content,
+  seed,
+}: {
+  lessonId: string;
+  /** Isi materi, dimuat di server khusus untuk halaman ini. */
+  content: LessonContentData | null;
+  seed: number;
+}) {
   const data = useAppData();
   const timer = useActiveTimer();
   const now = useNow();
@@ -78,8 +88,13 @@ export function LessonView({ lessonId }: { lessonId: string }) {
   return (
     <div>
       <LessonHeader lessonRef={ref} status={status} progress={progress} />
-      <div className="grid gap-6 lg:grid-cols-[1fr_18rem]">
-        <LessonContent lesson={ref.lesson} prerequisiteTitles={prereqRefs.map((p) => p.lesson.title)} />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_18rem]">
+        <LessonContent
+          lesson={ref.lesson}
+          content={content}
+          seed={seed}
+          prerequisiteTitles={prereqRefs.map((p) => p.lesson.title)}
+        />
 
         <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">
           <Card>

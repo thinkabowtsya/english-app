@@ -52,9 +52,9 @@ export function ProgressSummary({ data, todayKey, className }: { data: AppData; 
 
 function Stat({ icon, label, value, hint }: { icon: ReactNode; label: string; value: ReactNode; hint?: string }) {
   return (
-    <div className="rounded-xl bg-surface-muted p-3">
-      <dt className="flex items-center gap-1.5 text-xs text-muted">
-        <span aria-hidden>{icon}</span>
+    <div className="min-w-0 rounded-xl bg-surface-muted p-3">
+      <dt className="flex items-start gap-1.5 text-xs text-muted">
+        <span aria-hidden className="shrink-0">{icon}</span>
         {label}
       </dt>
       <dd className="mt-1 text-lg font-semibold tabular-nums text-fg">{value}</dd>

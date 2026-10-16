@@ -89,7 +89,7 @@ export function LatihanView() {
         <h2 id="practice-types" className="mb-3 text-sm font-semibold text-fg">
           Jenis latihan
         </h2>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {PRACTICE_TYPES.map((type) => {
             const Icon = type.icon;
             return (
@@ -117,7 +117,7 @@ export function LatihanView() {
           Kata yang di-bookmark di Vocab Builder masuk ke daftar review. Waktu belajar hanya dicatat lewat Daily
           Learning Timer.
         </p>
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {EXISTING_TOOLS.map((tool) => {
             const Icon = tool.icon;
             return (

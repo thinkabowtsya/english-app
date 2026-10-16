@@ -97,3 +97,66 @@ export function stopSpeaking() {
     window.speechSynthesis.cancel();
   }
 }
+
+function pickEnglishVoice(): SpeechSynthesisVoice | undefined {
+  const voices = window.speechSynthesis.getVoices();
+  return (
+    voices.find(
+      (v) => v.lang.includes('en') && (v.name.includes('Google') || v.name.includes('Natural') || v.name.includes('Samantha') || v.name.includes('US')),
+    ) || voices.find((v) => v.lang.startsWith('en'))
+  );
+}
+
+export interface SpeechQueue {
+  /** Menambahkan kalimat ke antrean tanpa memotong kalimat yang sedang diucapkan. */
+  enqueue(text: string): void;
+  /** Menghentikan suara sekarang juga dan mengosongkan antrean (dipakai saat pengguna memotong). */
+  cancel(): void;
+  /** Teks yang sedang/akan diucapkan — untuk mendeteksi gema suara AI di mikrofon. */
+  spokenText(): string;
+  isBusy(): boolean;
+}
+
+/**
+ * Antrean text-to-speech untuk panggilan suara: kalimat diucapkan berurutan begitu tersedia
+ * (tidak perlu menunggu seluruh balasan). `onIdle` dipanggil saat antrean selesai.
+ */
+export function createSpeechQueue(options: { onStart?: () => void; onIdle?: () => void; lang?: string } = {}): SpeechQueue {
+  let pending = 0;
+  let generation = 0;
+  let texts: string[] = [];
+  const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+  return {
+    enqueue(text) {
+      const clean = text.trim();
+      if (!clean || !supported) return;
+      const gen = generation;
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.lang = options.lang ?? 'en-US';
+      utterance.rate = 1.0;
+      const voice = pickEnglishVoice();
+      if (voice) utterance.voice = voice;
+      const done = () => {
+        if (gen !== generation) return; // milik antrean yang sudah dibatalkan
+        pending = Math.max(0, pending - 1);
+        texts = texts.slice(1);
+        if (pending === 0) options.onIdle?.();
+      };
+      utterance.onend = done;
+      utterance.onerror = done;
+      if (pending === 0) options.onStart?.();
+      pending++;
+      texts.push(clean);
+      window.speechSynthesis.speak(utterance);
+    },
+    cancel() {
+      generation++;
+      pending = 0;
+      texts = [];
+      if (supported) window.speechSynthesis.cancel();
+    },
+    spokenText: () => texts.join(' '),
+    isBusy: () => pending > 0,
+  };
+}

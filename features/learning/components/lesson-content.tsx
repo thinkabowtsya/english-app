@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/feedback';
-import type { Lesson, LessonActivity } from '@/types/curriculum';
+import type { Lesson, LessonActivity, LessonContent as LessonContentData } from '@/types/curriculum';
 import { ExerciseContainer } from './exercise-container';
 
 /** Urutan bagian materi. Bagian tanpa konten ditampilkan sebagai placeholder yang jelas. */
@@ -24,12 +24,16 @@ const SECTIONS = [
 
 type SectionId = (typeof SECTIONS)[number]['id'];
 
-function activitiesOf(lesson: Lesson, type: LessonActivity['type']) {
-  return (lesson.content?.activities ?? []).filter((a) => a.type === type);
+function activitiesOf(c: LessonContentData | null, type: LessonActivity['type']) {
+  return (c?.activities ?? []).filter((a) => a.type === type);
 }
 
-function renderSection(id: SectionId, lesson: Lesson, prerequisiteTitles: string[]): ReactNode {
-  const c = lesson.content;
+function renderSection(
+  id: SectionId,
+  c: LessonContentData | null,
+  prerequisiteTitles: string[],
+  seed: number,
+): ReactNode {
   switch (id) {
     case 'objectives':
       return c?.objectives.length ? (
@@ -72,7 +76,7 @@ function renderSection(id: SectionId, lesson: Lesson, prerequisiteTitles: string
         <ul className="space-y-3">
           {c.comparisons.map((cmp) => (
             <li key={cmp.a.en + cmp.b.en} className="rounded-lg bg-surface-muted p-3">
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {[cmp.a, cmp.b].map((ex) => (
                   <div key={ex.en}>
                     <p className="font-medium text-fg">{ex.en}</p>
@@ -128,10 +132,10 @@ function renderSection(id: SectionId, lesson: Lesson, prerequisiteTitles: string
     case 'exercise':
     case 'recall':
     case 'evaluation': {
-      const items = activitiesOf(lesson, id);
+      const items = activitiesOf(c, id);
       return items.length ? (
         <div className="space-y-3">
-          {items.map((a) => <ExerciseContainer key={a.id} activity={a} />)}
+          {items.map((a) => <ExerciseContainer key={a.id} activity={a} seed={seed} />)}
         </div>
       ) : null;
     }
@@ -140,7 +144,18 @@ function renderSection(id: SectionId, lesson: Lesson, prerequisiteTitles: string
   }
 }
 
-export function LessonContent({ lesson, prerequisiteTitles }: { lesson: Lesson; prerequisiteTitles: string[] }) {
+export function LessonContent({
+  lesson,
+  content,
+  prerequisiteTitles,
+  seed,
+}: {
+  lesson: Lesson;
+  content: LessonContentData | null;
+  prerequisiteTitles: string[];
+  /** Benih pengacakan soal (dibuat di server agar render server & browser sama). */
+  seed: number;
+}) {
   return (
     <div className="space-y-3">
       {lesson.contentStatus === 'placeholder' && (
@@ -149,7 +164,7 @@ export function LessonContent({ lesson, prerequisiteTitles }: { lesson: Lesson; 
         </p>
       )}
       {SECTIONS.map((section) => {
-        const body = renderSection(section.id, lesson, prerequisiteTitles);
+        const body = renderSection(section.id, content, prerequisiteTitles, seed);
         return (
           <Card key={section.id} className="p-4">
             <div className="mb-2 flex items-center justify-between gap-2">
