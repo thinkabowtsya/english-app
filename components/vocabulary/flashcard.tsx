@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { VocabCard } from '@/lib/types';
-import { Volume2, RotateCw, Sparkles, Check, Bookmark } from 'lucide-react';
+import { Volume2, RotateCw, Bookmark } from 'lucide-react';
 import { speakText } from '@/lib/speech';
 
 interface FlashcardProps {

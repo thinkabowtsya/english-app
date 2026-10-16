@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useSyncExternalStore } from 'react';
 import { Mic, MicOff, AlertCircle } from 'lucide-react';
 import { isSpeechRecognitionSupported, createSpeechRecognizer } from '@/lib/speech';
 
@@ -9,18 +9,16 @@ interface VoiceInputProps {
   isDisabled?: boolean;
 }
 
+const subscribeNoop = () => () => {};
+
 export default function VoiceInput({ onTranscript, isDisabled }: VoiceInputProps) {
   const [isListening, setIsListening] = useState(false);
-  const [supported, setSupported] = useState(true);
+  const supported = useSyncExternalStore(subscribeNoop, isSpeechRecognitionSupported, () => true);
   const [transcriptPreview, setTranscriptPreview] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognizerRef = useRef<any>(null);
-
-  useEffect(() => {
-    setSupported(isSpeechRecognitionSupported());
-  }, []);
 
   const stopListening = useCallback(() => {
     if (recognizerRef.current) {

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Message } from '@/lib/types';
 import CorrectionCard from './correction-card';
-import { Volume2, VolumeX, Languages, Bot, User, Sparkles } from 'lucide-react';
+import { Volume2, VolumeX, Languages, Bot, User } from 'lucide-react';
 import { speakText, stopSpeaking } from '@/lib/speech';
 
 interface ChatMessageProps {

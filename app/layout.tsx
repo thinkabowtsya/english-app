@@ -1,29 +1,47 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
-import Navbar from '@/components/navbar';
+import { MobileBottomNav, MobileTopBar, Sidebar } from '@/components/app-shell/navigation';
+import { StorageWarning } from '@/components/app-shell/storage-warning';
+import { ThemeSync } from '@/components/app-shell/theme';
+import { themeInitScript } from '@/components/app-shell/theme-script';
+import { SessionSummaryDialog } from '@/features/timer/session-summary-dialog';
+import { TimerController } from '@/features/timer/timer-controller';
 
 export const metadata: Metadata = {
-  title: 'Antigravity English AI - Interactive English Learning App',
-  description: 'Learn English with native AI conversation partner, real-time grammar corrections, voice recognition, and interactive vocabulary builder powered by Groq Llama 3.3 70B.',
+  title: {
+    default: 'Antigravity English — Personal Learning Workspace',
+    template: '%s · Antigravity English',
+  },
+  description:
+    'Workspace belajar bahasa Inggris pribadi: timer belajar harian, target, progres, materi terstruktur, dan AI English Coach.',
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export const viewport: Viewport = {
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f6f6f4' },
+    { media: '(prefers-color-scheme: dark)', color: '#0f1013' },
+  ],
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
-      <body className="min-h-screen bg-[#0b0f19] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white" suppressHydrationWarning>
-        <div className="relative min-h-screen flex flex-col glow-gradient-purple glow-gradient-blue">
-          <Navbar />
-          <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <html lang="id" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
+      <body className="min-h-screen bg-bg text-fg antialiased">
+        <Sidebar />
+        <MobileTopBar />
+        <div className="lg:pl-60">
+          <main className="mx-auto w-full max-w-6xl px-4 pt-6 pb-28 sm:px-6 lg:px-8 lg:pt-8 lg:pb-12">
+            <StorageWarning />
             {children}
           </main>
-          <footer className="border-t border-slate-800/80 bg-slate-950/80 py-6 text-center text-xs text-slate-400">
-            <p>© {new Date().getFullYear()} Antigravity English AI • Powered by Groq Cloud & Web Speech API</p>
-          </footer>
         </div>
+        <MobileBottomNav />
+        <TimerController />
+        <SessionSummaryDialog />
+        <ThemeSync />
       </body>
     </html>
   );

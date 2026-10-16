@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { PhoneCall, PhoneOff, Mic, MicOff, Volume2, VolumeX, Sparkles, Shuffle, Check, Award, RefreshCw, MessageCircle } from 'lucide-react';
+import { PhoneCall, PhoneOff, Mic, MicOff, Volume2, VolumeX, Sparkles, Shuffle, Check, RefreshCw } from 'lucide-react';
 import { speakText, stopSpeaking, createSpeechRecognizer, isSpeechRecognitionSupported } from '@/lib/speech';
 import { Correction } from '@/lib/types';
 import CorrectionCard from '@/components/chat/correction-card';
+import { useHydrated } from '@/lib/storage/hooks';
 
 interface TopicSuggestion {
   id: string;
@@ -68,15 +69,13 @@ export default function VoiceCallStudioPage() {
   const [transcriptHistory, setTranscriptHistory] = useState<{ role: 'user' | 'ai'; text: string; time: string; correction?: Correction | null }[]>([]);
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [callSummaryScores, setCallSummaryScores] = useState<number[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydrated();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognizerRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // Handler terbaru untuk kalimat yang diucapkan (dipakai callback speech recognizer).
+  const spokenHandlerRef = useRef<(text: string) => void>(() => {});
 
   // Timer Counter for active call duration
   useEffect(() => {
@@ -111,7 +110,7 @@ export default function VoiceCallStudioPage() {
       onResult: (text, isFinal) => {
         setCurrentTranscript(text);
         if (isFinal && text.trim()) {
-          handleUserSpokenSentence(text.trim());
+          spokenHandlerRef.current(text.trim());
           setCurrentTranscript('');
         }
       },
@@ -212,6 +211,10 @@ export default function VoiceCallStudioPage() {
       startMicListener();
     }
   };
+
+  useEffect(() => {
+    spokenHandlerRef.current = (text) => void handleUserSpokenSentence(text);
+  });
 
   // Start Phone Call
   const handleStartCall = (presetTopic?: TopicSuggestion) => {

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Mic, Volume2, Sparkles, CheckCircle2, RefreshCw, VolumeX, AlertCircle, Award } from 'lucide-react';
+import { Mic, Volume2, Sparkles, CheckCircle2, RefreshCw, VolumeX, Award } from 'lucide-react';
 import { speakText, stopSpeaking } from '@/lib/speech';
 import VoiceInput from '@/components/chat/voice-input';
 

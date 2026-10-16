@@ -1,33 +1,58 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { groq, MAIN_MODEL } from '@/lib/groq';
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { MAIN_MODEL, getGroq, isGroqConfigured, modelOptions } from '@/lib/groq';
+import { jsonError, readJsonBody } from '@/lib/server/http';
+import { enforceAiRateLimit } from '@/lib/server/rate-limit';
 
-export async function POST(req: NextRequest) {
+/** Endpoint lama untuk /practice dan /call. Format respons dipertahankan. */
+
+const CONTEXT_MESSAGES = 30;
+
+const schema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.string().max(20),
+        content: z.string().max(4_000),
+      }),
+    )
+    .min(1)
+    .max(200),
+  scenarioPrompt: z.string().max(1_000).optional(),
+  userLevel: z.string().max(40).default('Intermediate'),
+  action: z.enum(['chat', 'translate']).default('chat'),
+});
+
+export async function POST(req: Request) {
+  const limited = enforceAiRateLimit(req);
+  if (limited) return limited;
+
+  const body = await readJsonBody(req, schema, 128 * 1024);
+  if (!body.ok) return body.response;
+  if (!isGroqConfigured()) return jsonError(503, 'AI belum dikonfigurasi di server.');
+
+  const { messages, scenarioPrompt, userLevel, action } = body.data;
+  const groq = getGroq();
+
   try {
-    const body = await req.json();
-    const { messages, scenarioPrompt, userLevel = 'Intermediate', action = 'chat' } = body;
-
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
-    }
-
     if (action === 'translate') {
-      const lastMessage = messages[messages.length - 1]?.content;
+      const lastMessage = messages[messages.length - 1]?.content ?? '';
       const completion = await groq.chat.completions.create({
         model: MAIN_MODEL,
         messages: [
           {
             role: 'system',
-            content: 'You are an accurate English to Indonesian translator. Translate the given English sentence into natural, fluent Indonesian. Provide ONLY the direct translation without extra commentary.'
+            content:
+              'You are an accurate English to Indonesian translator. Translate the given English sentence into natural, fluent Indonesian. Provide ONLY the direct translation without extra commentary.',
           },
-          { role: 'user', content: lastMessage }
+          { role: 'user', content: lastMessage },
         ],
         temperature: 0.2,
+        ...modelOptions(),
       });
-
       return NextResponse.json({ translation: completion.choices[0]?.message?.content || '' });
     }
 
-    // Default chat & roleplay handling
     const systemInstruction = `You are "Antigravity English Coach", an empathetic, highly engaging, native English conversational tutor.
 Your user is an Indonesian learner practicing English at ${userLevel} level.
 Scenario Context: ${scenarioPrompt || 'Casual conversational practice.'}
@@ -38,27 +63,27 @@ Guidelines:
 3. Ask open-ended questions to encourage the user to speak/write more.
 4. Do NOT explicitly correct grammar inside your conversational reply unless asked; grammar analysis will be handled separately in the UI. Focus on keeping the conversation engaging.`;
 
-    const groqMessages = [
-      { role: 'system' as const, content: systemInstruction },
-      ...messages.map((m: { role: string; content: string }) => ({
-        role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
-        content: m.content
-      }))
-    ];
-
     const completion = await groq.chat.completions.create({
       model: MAIN_MODEL,
-      messages: groqMessages,
+      messages: [
+        { role: 'system', content: systemInstruction },
+        ...messages
+          .filter((m) => m.content.trim().length > 0)
+          .slice(-CONTEXT_MESSAGES)
+          .map((m) => ({
+            role: (m.role === 'assistant' ? 'assistant' : 'user') as 'user' | 'assistant',
+            content: m.content,
+          })),
+      ],
       temperature: 0.7,
-      max_tokens: 400,
+      max_tokens: 800,
+      ...modelOptions(),
     });
 
     const aiReply = completion.choices[0]?.message?.content || "That's interesting! Tell me more about it.";
-
     return NextResponse.json({ reply: aiReply });
   } catch (error: unknown) {
-    console.error('Groq Chat API Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to communicate with AI model';
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
+    console.error('[api/chat]', error instanceof Error ? error.message : error);
+    return jsonError(502, 'Layanan AI sedang tidak dapat dihubungi. Coba lagi nanti.');
   }
 }

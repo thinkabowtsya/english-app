@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { VocabCard } from '@/lib/types';
 import Flashcard from '@/components/vocabulary/flashcard';
 import { BookOpen, Sparkles, RefreshCw, Bookmark, HelpCircle, CheckCircle, XCircle, Award } from 'lucide-react';
@@ -14,7 +14,7 @@ export default function VocabularyPage() {
   const [selectedLevel, setSelectedLevel] = useState<typeof LEVELS[number]>('B2');
   const [cards, setCards] = useState<VocabCard[]>([]);
   const [bookmarks, setBookmarks] = useState<VocabCard[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'cards' | 'quiz' | 'bookmarks'>('cards');
 
   // Quiz state
@@ -23,28 +23,28 @@ export default function VocabularyPage() {
   const [quizAnswered, setQuizAnswered] = useState<boolean>(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
-  const fetchVocabulary = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const res = await fetch('/api/vocabulary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: selectedCategory, level: selectedLevel, count: 6 })
-      });
-      const data = await res.json();
-      if (data.items) {
-        setCards(data.items);
-      }
-    } catch (err) {
-      console.error('Failed to fetch vocabulary:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedCategory, selectedLevel]);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    fetchVocabulary();
-  }, [fetchVocabulary]);
+    const controller = new AbortController();
+    fetch('/api/vocabulary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: selectedCategory, level: selectedLevel, count: 6 }),
+      signal: controller.signal
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.items) setCards(data.items);
+      })
+      .catch(err => {
+        if (!controller.signal.aborted) console.error('Failed to fetch vocabulary:', err);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
+    return () => controller.abort();
+  }, [selectedCategory, selectedLevel, reloadKey]);
 
   const toggleBookmark = (card: VocabCard) => {
     if (bookmarks.some(b => b.id === card.id || b.word === card.word)) {
@@ -63,8 +63,10 @@ export default function VocabularyPage() {
       .map(c => c.definitionId)
       .slice(0, 3);
     const options = [currentQuizCard.definitionId, ...wrongOptions];
-    return options.sort(() => Math.random() - 0.5);
-  }, [currentQuizCard, cards]);
+    // Rotasi deterministik (bukan Math.random saat render) agar posisi jawaban bervariasi.
+    const offset = (currentQuizCard.word.length + quizIndex) % options.length;
+    return [...options.slice(offset), ...options.slice(0, offset)];
+  }, [currentQuizCard, cards, quizIndex]);
 
   const handleQuizAnswer = (option: string) => {
     if (quizAnswered) return;
@@ -107,7 +109,7 @@ export default function VocabularyPage() {
             <h1 className="text-xl font-bold text-white tracking-tight">AI Vocabulary & Idiom Builder</h1>
           </div>
           <p className="text-xs text-slate-400">
-            Learn curated CEFR vocabulary and native idioms generated dynamically by Groq Llama 3.3.
+            Learn curated CEFR vocabulary and native idioms generated dynamically by Groq AI.
           </p>
         </div>
 
@@ -155,7 +157,10 @@ export default function VocabularyPage() {
             {CATEGORIES.map((cat) => (
               <button
                 key={cat}
-                onClick={() => setSelectedCategory(cat)}
+                onClick={() => {
+                  if (cat !== selectedCategory) setIsLoading(true);
+                  setSelectedCategory(cat);
+                }}
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
                   selectedCategory === cat
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
@@ -174,7 +179,10 @@ export default function VocabularyPage() {
               {LEVELS.map((lvl) => (
                 <button
                   key={lvl}
-                  onClick={() => setSelectedLevel(lvl)}
+                  onClick={() => {
+                    if (lvl !== selectedLevel) setIsLoading(true);
+                    setSelectedLevel(lvl);
+                  }}
                   className={`px-2 py-0.5 rounded text-xs font-bold font-mono transition-all ${
                     selectedLevel === lvl
                       ? 'bg-purple-600 text-white'
@@ -187,7 +195,10 @@ export default function VocabularyPage() {
             </div>
 
             <button
-              onClick={fetchVocabulary}
+              onClick={() => {
+                setIsLoading(true);
+                setReloadKey(k => k + 1);
+              }}
               disabled={isLoading}
               className="flex items-center gap-1.5 rounded-xl bg-indigo-950/80 border border-indigo-700/60 px-3.5 py-1.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-900 transition-colors disabled:opacity-50"
             >

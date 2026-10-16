@@ -6,38 +6,34 @@ import { Message, Scenario, Correction } from '@/lib/types';
 import ScenarioSelector from '@/components/chat/scenario-selector';
 import ChatMessage from '@/components/chat/chat-message';
 import VoiceInput from '@/components/chat/voice-input';
-import { Send, RefreshCw, Volume2, Sparkles, AlertCircle, Award, VolumeX } from 'lucide-react';
+import { Send, RefreshCw, Volume2, Sparkles, Award, VolumeX } from 'lucide-react';
 import { speakText, stopSpeaking } from '@/lib/speech';
+import { createId } from '@/lib/id';
+import { useHydrated } from '@/lib/storage/hooks';
+
+function initialMessages(scenario: Scenario): Message[] {
+  return [
+    {
+      id: 'init-1',
+      role: 'assistant',
+      content: scenario.initialMessage,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
+  ];
+}
 
 export default function PracticeStudioPage() {
   const [currentScenario, setCurrentScenario] = useState<Scenario>(PRACTICE_SCENARIOS[0]);
-  const [messages, setMessages] = useState<Message[]>([]);
+  // Server merender loader (mounted=false), jadi timestamp awal tidak menimbulkan hydration mismatch.
+  const [messages, setMessages] = useState<Message[]>(() => initialMessages(PRACTICE_SCENARIOS[0]));
   const [inputText, setInputText] = useState('');
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [autoSpeakAI, setAutoSpeakAI] = useState(true);
   const [translatingId, setTranslatingId] = useState<string | null>(null);
   const [sessionScore, setSessionScore] = useState<number[]>([]);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useHydrated();
 
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Initialize initial scenario message
-  useEffect(() => {
-    if (!mounted) return;
-    setMessages([
-      {
-        id: 'init-1',
-        role: 'assistant',
-        content: currentScenario.initialMessage,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ]);
-    setSessionScore([]);
-  }, [currentScenario, mounted]);
 
   // Scroll to bottom on new message
   useEffect(() => {
@@ -47,6 +43,8 @@ export default function PracticeStudioPage() {
   // Handle Scenario Switch
   const handleScenarioChange = (scenario: Scenario) => {
     setCurrentScenario(scenario);
+    setMessages(initialMessages(scenario));
+    setSessionScore([]);
     stopSpeaking();
   };
 
@@ -77,7 +75,7 @@ export default function PracticeStudioPage() {
     if (!textToSend.trim() || isLoadingAI) return;
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    const userMsgId = 'user-' + Date.now();
+    const userMsgId = createId('user');
 
     const newUserMsg: Message = {
       id: userMsgId,
@@ -115,7 +113,7 @@ export default function PracticeStudioPage() {
 
     if (aiResponse && aiResponse.reply) {
       const aiMsg: Message = {
-        id: 'ai-' + Date.now(),
+        id: createId('ai'),
         role: 'assistant',
         content: aiResponse.reply,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
