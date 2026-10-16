@@ -1,9 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Mic, Volume2, Sparkles, CheckCircle2, RefreshCw, VolumeX, Award } from 'lucide-react';
+import { Volume2, Sparkles, CheckCircle2, RefreshCw, VolumeX, Award } from 'lucide-react';
 import { speakText, stopSpeaking } from '@/lib/speech';
 import VoiceInput from '@/components/chat/voice-input';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge, PageHeader } from '@/components/ui/feedback';
+import { cn } from '@/lib/utils';
 
 interface SentenceChallenge {
   id: string;
@@ -104,99 +108,82 @@ export default function PronunciationLabPage() {
     stopSpeaking();
   };
 
-  return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      
-      {/* Top Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-panel rounded-2xl p-5 border border-slate-800">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="p-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
-              <Mic className="h-4 w-4" />
-            </span>
-            <h1 className="text-xl font-bold text-white tracking-tight">Speaking & Pronunciation Lab</h1>
-          </div>
-          <p className="text-xs text-slate-400">
-            Listen to native reference audio, record your voice, and compare pronunciation accuracy.
-          </p>
-        </div>
+  const difficultyTone = { Easy: 'success', Medium: 'warning', Hard: 'danger' } as const;
 
-        <button
-          onClick={nextChallenge}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-md shadow-indigo-500/20"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          <span>Next Challenge ({currentIdx + 1}/{CHALLENGES.length})</span>
-        </button>
-      </div>
+  return (
+    <div className="mx-auto max-w-4xl space-y-5">
+
+      <PageHeader
+        title="Speaking & Pronunciation Lab"
+        description="Dengarkan audio referensi native, rekam suaramu, lalu bandingkan akurasi pelafalan."
+        action={
+          <Button size="sm" onClick={nextChallenge}>
+            <RefreshCw className="h-3.5 w-3.5" />
+            Tantangan berikutnya ({currentIdx + 1}/{CHALLENGES.length})
+          </Button>
+        }
+      />
 
       {/* Main Pronunciation Card */}
-      <div className="glass-panel rounded-2xl border border-slate-800 p-6 sm:p-8 space-y-6 shadow-2xl">
-        
+      <Card className="space-y-6 p-5 sm:p-8">
+
         {/* Header Metadata */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full bg-indigo-950/80 border border-indigo-700/50 text-xs font-bold text-indigo-300">
-              {challenge.focusArea}
-            </span>
-            <span className={`px-2.5 py-0.5 rounded text-xs font-bold ${
-              challenge.difficulty === 'Easy' ? 'bg-emerald-950 text-emerald-300' :
-              challenge.difficulty === 'Medium' ? 'bg-amber-950 text-amber-300' : 'bg-rose-950 text-rose-300'
-            }`}>
-              {challenge.difficulty}
-            </span>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone="accent">{challenge.focusArea}</Badge>
+            <Badge tone={difficultyTone[challenge.difficulty]}>{challenge.difficulty}</Badge>
           </div>
 
-          <span className="text-xs text-slate-400 font-mono">Challenge {currentIdx + 1}</span>
+          <span className="font-mono text-xs text-muted">Tantangan {currentIdx + 1}</span>
         </div>
 
         {/* Target Sentence Display */}
-        <div className="text-center py-6 px-4 rounded-2xl bg-slate-950/80 border border-slate-800/80 space-y-3">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white leading-relaxed tracking-tight">
+        <div className="space-y-3 rounded-2xl bg-surface-muted px-4 py-6 text-center">
+          <h2 className="text-xl leading-relaxed font-semibold tracking-tight break-words text-fg sm:text-3xl">
             &ldquo;{challenge.text}&rdquo;
           </h2>
-          <p className="text-xs text-indigo-300 font-mono">{challenge.phonetics}</p>
-          <p className="text-xs text-slate-400 italic">Terjemahan: &ldquo;{challenge.translation}&rdquo;</p>
+          <p className="font-mono text-xs break-words text-accent">{challenge.phonetics}</p>
+          <p className="text-xs text-muted italic">Terjemahan: &ldquo;{challenge.translation}&rdquo;</p>
         </div>
 
         {/* Action Controls: Reference Audio & Microphone Record */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+        <div className="flex flex-col items-stretch justify-center gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
           {/* Reference Audio button */}
-          <button
+          <Button
+            variant="secondary"
+            size="lg"
             onClick={handlePlayReference}
-            className={`flex items-center gap-2.5 px-5 py-3 rounded-xl border text-xs font-bold transition-all shadow-md ${
-              isPlayingReference
-                ? 'bg-indigo-600 border-indigo-500 text-white animate-pulse'
-                : 'bg-slate-900 border-slate-700 text-indigo-300 hover:text-white hover:border-indigo-500'
-            }`}
+            aria-pressed={isPlayingReference}
+            className={cn('text-sm', isPlayingReference && 'border-accent bg-accent-soft text-accent hover:bg-accent-soft')}
           >
             {isPlayingReference ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-            <span>{isPlayingReference ? 'Stop Native Audio' : 'Listen Native Accent (en-US)'}</span>
-          </button>
+            {isPlayingReference ? 'Hentikan audio native' : 'Dengarkan aksen native (en-US)'}
+          </Button>
 
           {/* Microphone Recording Input */}
-          <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl">
-            <span className="text-xs font-bold text-slate-300">Record Your Voice:</span>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-line px-4 py-2 sm:justify-start">
+            <span className="text-xs font-medium text-fg">Rekam suaramu:</span>
             <VoiceInput onTranscript={evaluateAccuracy} />
           </div>
         </div>
 
         {/* Evaluation & Result Feedback Card */}
         {spokenTranscript && (
-          <div className="rounded-2xl bg-slate-950/90 border border-slate-800 p-5 space-y-4 animate-fade-in">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="space-y-4 rounded-2xl border border-line p-4 sm:p-5" aria-live="polite">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                <span className="text-xs font-bold text-white">Voice Transcript Captured</span>
+                <CheckCircle2 className="h-4 w-4 text-success" />
+                <span className="text-xs font-semibold text-fg">Transkrip suara tertangkap</span>
               </div>
 
               {accuracyScore !== null && (
                 <div className="flex items-center gap-2">
-                  <Award className="h-4 w-4 text-amber-400" />
-                  <span className="text-xs text-slate-400 font-bold uppercase">Accuracy Score:</span>
-                  <span className={`text-sm font-extrabold ${
-                    accuracyScore >= 80 ? 'text-emerald-400' : accuracyScore >= 50 ? 'text-amber-400' : 'text-rose-400'
-                  }`}>
+                  <Award className="h-4 w-4 text-warning" />
+                  <span className="text-xs font-medium text-muted uppercase">Skor akurasi:</span>
+                  <span className={cn(
+                    'text-sm font-bold tabular-nums',
+                    accuracyScore >= 80 ? 'text-success' : accuracyScore >= 50 ? 'text-warning' : 'text-danger'
+                  )}>
                     {accuracyScore}%
                   </span>
                 </div>
@@ -204,8 +191,8 @@ export default function PronunciationLabPage() {
             </div>
 
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">What the mic heard:</span>
-              <p className="text-sm font-semibold text-indigo-200 bg-slate-900 p-3 rounded-xl border border-slate-800">
+              <span className="mb-1 block text-[10px] font-semibold text-muted uppercase">Yang didengar mikrofon:</span>
+              <p className="rounded-xl bg-surface-muted p-3 text-sm font-medium break-words text-fg">
                 &ldquo;{spokenTranscript}&rdquo;
               </p>
             </div>
@@ -213,15 +200,15 @@ export default function PronunciationLabPage() {
         )}
 
         {/* Pronunciation Tip Box */}
-        <div className="flex items-start gap-3 rounded-2xl bg-amber-950/20 border border-amber-800/40 p-4 text-xs text-amber-200">
-          <Sparkles className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-3 rounded-2xl bg-warning-soft p-4 text-xs text-fg">
+          <Sparkles className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <div>
-            <span className="font-bold text-amber-300 block text-xs mb-1">Tips Pelafalan Native:</span>
+            <span className="mb-1 block text-xs font-semibold text-warning">Tips Pelafalan Native:</span>
             <p className="leading-relaxed">{challenge.tip}</p>
           </div>
         </div>
 
-      </div>
+      </Card>
 
     </div>
   );

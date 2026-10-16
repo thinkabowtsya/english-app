@@ -19,9 +19,9 @@ export function TimerController() {
       const now = Date.now();
       const session = reconcileActiveTimer(now);
       if (!session || session.status !== 'completed' || now - session.endedAt > RECENT_FINISH_MS) return;
-      const { settings } = getData();
-      if (settings.soundOnFinish) playChime();
-      if (settings.browserNotification) {
+      const settings = getData()?.settings;
+      if (settings?.soundOnFinish) playChime();
+      if (settings?.browserNotification) {
         showBrowserNotification('Sesi belajar selesai', `Kamu belajar selama ${formatDuration(session.actualMs)}.`);
       }
     };

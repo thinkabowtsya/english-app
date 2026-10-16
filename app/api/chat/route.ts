@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { MAIN_MODEL, getGroq, isGroqConfigured, modelOptions } from '@/lib/groq';
 import { jsonError, readJsonBody } from '@/lib/server/http';
+import { requireUser } from '@/lib/server/auth';
 import { enforceAiRateLimit } from '@/lib/server/rate-limit';
 
 /** Endpoint lama untuk /practice dan /call. Format respons dipertahankan. */
@@ -24,7 +25,9 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const limited = enforceAiRateLimit(req);
+  const auth = await requireUser(req);
+  if ('response' in auth) return auth.response;
+  const limited = enforceAiRateLimit(req, auth.userId);
   if (limited) return limited;
 
   const body = await readJsonBody(req, schema, 128 * 1024);
@@ -53,7 +56,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ translation: completion.choices[0]?.message?.content || '' });
     }
 
-    const systemInstruction = `You are "Antigravity English Coach", an empathetic, highly engaging, native English conversational tutor.
+    const systemInstruction = `You are "My Journey English Coach", an empathetic, highly engaging, native English conversational tutor.
 Your user is an Indonesian learner practicing English at ${userLevel} level.
 Scenario Context: ${scenarioPrompt || 'Casual conversational practice.'}
 

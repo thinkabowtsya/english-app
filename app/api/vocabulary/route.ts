@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { MAIN_MODEL, getGroq, isGroqConfigured, modelOptions } from '@/lib/groq';
 import { jsonError, readJsonBody } from '@/lib/server/http';
+import { requireUser } from '@/lib/server/auth';
 import { enforceAiRateLimit } from '@/lib/server/rate-limit';
 
 /** Endpoint lama untuk /vocabulary. Format respons dipertahankan. */
@@ -13,7 +14,9 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
-  const limited = enforceAiRateLimit(req);
+  const auth = await requireUser(req);
+  if ('response' in auth) return auth.response;
+  const limited = enforceAiRateLimit(req, auth.userId);
   if (limited) return limited;
 
   const body = await readJsonBody(req, schema, 2 * 1024);

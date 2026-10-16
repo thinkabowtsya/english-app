@@ -44,12 +44,13 @@ export function getClientIp(request: Request): string {
   return request.headers.get('x-real-ip')?.trim() || 'local';
 }
 
-/** Batas gabungan untuk semua endpoint AI: 30 permintaan per menit per IP. */
+/** Batas gabungan untuk semua endpoint AI: 30 permintaan per menit per pengguna (atau IP). */
 export const AI_RATE_LIMIT = { limit: 30, windowMs: 60_000 };
 
 /** Mengembalikan respons 429 jika batas terlampaui, atau null jika boleh lanjut. */
-export function enforceAiRateLimit(request: Request) {
-  const result = checkRateLimit(`ai:${getClientIp(request)}`, AI_RATE_LIMIT.limit, AI_RATE_LIMIT.windowMs);
+export function enforceAiRateLimit(request: Request, userId?: string) {
+  const key = userId ? `ai:user:${userId}` : `ai:ip:${getClientIp(request)}`;
+  const result = checkRateLimit(key, AI_RATE_LIMIT.limit, AI_RATE_LIMIT.windowMs);
   if (result.allowed) return null;
   return jsonError(429, 'Terlalu banyak permintaan ke AI. Coba lagi sebentar lagi.', {
     'Retry-After': String(result.retryAfterSeconds),

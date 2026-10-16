@@ -84,29 +84,7 @@
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* Utilitas untuk halaman latihan lama (/call, /practice, /vocabulary, */
-/* /pronunciation). Halaman itu memakai tema gelap sendiri.            */
-/* ------------------------------------------------------------------ */
-
-.glass-panel {
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.glass-panel-hover {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.glass-panel-hover:hover {
-  background: rgba(30, 41, 59, 0.75);
-  border-color: rgba(99, 102, 241, 0.3);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 30px -10px rgba(99, 102, 241, 0.2);
-}
-
+/* Indikator gelombang suara (mikrofon & panggilan suara AI). */
 @keyframes sound-wave {
   0%, 100% { height: 6px; }
   50% { height: 24px; }

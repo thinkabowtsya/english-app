@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { GraduationCap, Settings } from 'lucide-react';
+import { GraduationCap, LogIn, Settings } from 'lucide-react';
 import { ActiveTimerPill } from '@/features/timer/active-timer-pill';
+import { SignOutButton } from './sign-out-button';
 import { cn } from '@/lib/utils';
 import { NAV_ITEMS, isNavActive } from './nav-items';
 
@@ -14,14 +15,14 @@ function Brand() {
         <GraduationCap className="h-4 w-4" aria-hidden />
       </span>
       <span className="leading-tight">
-        <span className="block text-sm font-semibold text-fg">Antigravity English</span>
-        <span className="block text-[11px] text-muted">Personal workspace</span>
+        <span className="block text-sm font-semibold text-fg">My Journey</span>
+        <span className="block text-[11px] text-muted">English learning</span>
       </span>
     </Link>
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ email, userId }: { email: string | null; userId: string | null }) {
   const pathname = usePathname();
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-surface lg:flex">
@@ -50,9 +51,24 @@ export function Sidebar() {
       </nav>
       <div className="space-y-3 border-t border-line px-5 py-4">
         <ActiveTimerPill />
-        <p className="text-[11px] leading-relaxed text-muted">
-          Mode personal (single-user). Progres tersimpan di browser ini, tanpa akun atau autentikasi.
-        </p>
+        {userId ? (
+          <>
+            {email && (
+              <p className="truncate text-[11px] text-muted" title={email}>
+                Masuk sebagai {email}
+              </p>
+            )}
+            <SignOutButton className="-ml-3 w-full" />
+          </>
+        ) : (
+          <Link
+            href="/login"
+            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-muted hover:bg-surface-muted hover:text-fg"
+          >
+            <LogIn className="h-4 w-4" aria-hidden />
+            Login untuk sinkronisasi
+          </Link>
+        )}
       </div>
     </aside>
   );

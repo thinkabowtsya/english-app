@@ -365,7 +365,7 @@ export function CoachView() {
           </Card>
 
           <Card className="hidden lg:block">
-            <CardHeader title="Latihan suara (fitur lama)" description="Belum tercatat di progres." />
+            <CardHeader title="Latihan suara" description="Frasa dari latihan ini bisa disimpan ke daftar review." />
             <div className="space-y-1">
               <LegacyLink href="/call" icon={<PhoneCall className="h-4 w-4" />} label="Panggilan suara AI" />
               <LegacyLink href="/practice" icon={<Mic className="h-4 w-4" />} label="Studio role-play skenario" />
@@ -375,8 +375,8 @@ export function CoachView() {
       </div>
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:hidden">
-        <LegacyLink href="/call" icon={<PhoneCall className="h-4 w-4" />} label="Panggilan suara AI (fitur lama)" />
-        <LegacyLink href="/practice" icon={<Mic className="h-4 w-4" />} label="Studio role-play (fitur lama)" />
+        <LegacyLink href="/call" icon={<PhoneCall className="h-4 w-4" />} label="Panggilan suara AI" />
+        <LegacyLink href="/practice" icon={<Mic className="h-4 w-4" />} label="Studio role-play skenario" />
       </div>
 
       <ConfirmDialog

@@ -11,11 +11,14 @@ const SECTIONS = [
   { id: 'explanation', title: 'Penjelasan' },
   { id: 'patterns', title: 'Pola kalimat' },
   { id: 'examples', title: 'Contoh' },
+  { id: 'comparisons', title: 'Perbandingan' },
+  { id: 'mistakes', title: 'Kesalahan umum' },
   { id: 'expressions', title: 'Useful expressions' },
   { id: 'dialog', title: 'Dialog' },
   { id: 'exercise', title: 'Latihan' },
   { id: 'recall', title: 'Recall' },
   { id: 'evaluation', title: 'Evaluasi' },
+  { id: 'summary', title: 'Ringkasan' },
   { id: 'review', title: 'Rekomendasi review' },
 ] as const;
 
@@ -59,9 +62,47 @@ function renderSection(id: SectionId, lesson: Lesson, prerequisiteTitles: string
             <li key={e.en}>
               <p className="text-fg">{e.en}</p>
               {e.id && <p className="text-xs">{e.id}</p>}
+              {e.note && <p className="text-xs italic">{e.note}</p>}
             </li>
           ))}
         </ul>
+      ) : null;
+    case 'comparisons':
+      return c?.comparisons?.length ? (
+        <ul className="space-y-3">
+          {c.comparisons.map((cmp) => (
+            <li key={cmp.a.en + cmp.b.en} className="rounded-lg bg-surface-muted p-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[cmp.a, cmp.b].map((ex) => (
+                  <div key={ex.en}>
+                    <p className="font-medium text-fg">{ex.en}</p>
+                    {ex.id && <p className="text-xs">{ex.id}</p>}
+                  </div>
+                ))}
+              </div>
+              <p className="mt-2 text-xs">{cmp.explanation}</p>
+            </li>
+          ))}
+        </ul>
+      ) : null;
+    case 'mistakes':
+      return c?.mistakes?.length ? (
+        <ul className="space-y-3">
+          {c.mistakes.map((m) => (
+            <li key={m.wrong}>
+              <p>
+                <span className="text-danger line-through">{m.wrong}</span>
+                {' → '}
+                <span className="font-medium text-fg">{m.correct}</span>
+              </p>
+              <p className="text-xs">{m.reason}</p>
+            </li>
+          ))}
+        </ul>
+      ) : null;
+    case 'summary':
+      return c?.summary?.length ? (
+        <ul className="list-disc space-y-1 pl-5">{c.summary.map((s) => <li key={s}>{s}</li>)}</ul>
       ) : null;
     case 'expressions':
       return c?.expressions?.length ? (

@@ -9,7 +9,7 @@ import { ProgressBar } from '@/components/ui/feedback';
 import { findLesson, flattenLessons, getNextLesson } from '@/lib/curriculum';
 import { formatDuration, toLocalDateKey } from '@/lib/date';
 import { getDailyTotalMs, getGoalProgress } from '@/lib/progress';
-import { useAppData, useLastFinished } from '@/lib/storage/hooks';
+import { useAppData, useCloudState, useLastFinished } from '@/lib/storage/hooks';
 import { setLastFinished } from '@/lib/storage/store';
 
 const TITLES = {
@@ -23,6 +23,7 @@ const timeFormat = new Intl.DateTimeFormat('id-ID', { hour: '2-digit', minute: '
 export function SessionSummaryDialog() {
   const session = useLastFinished();
   const data = useAppData();
+  const cloud = useCloudState();
   if (!session || !data) return null;
 
   const close = () => setLastFinished(null);
@@ -73,6 +74,11 @@ export function SessionSummaryDialog() {
           {lesson && <> · {lesson.lesson.title}</>}
         </div>
       </dl>
+      <p className={cloud.pendingSessions > 0 ? 'mt-3 text-xs text-warning' : 'mt-3 text-xs text-success'}>
+        {cloud.pendingSessions > 0
+          ? 'Belum tersimpan ke cloud — disimpan sementara di perangkat ini dan akan dikirim otomatis.'
+          : 'Tersimpan ke cloud.'}
+      </p>
       <div className="mt-4">
         <div className="mb-1.5 flex justify-between text-xs">
           <span>Target harian</span>

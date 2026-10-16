@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback, useSyncExternalStore } from 'react';
 import { Mic, MicOff, AlertCircle } from 'lucide-react';
 import { isSpeechRecognitionSupported, createSpeechRecognizer } from '@/lib/speech';
+import { cn } from '@/lib/utils';
 
 interface VoiceInputProps {
   onTranscript: (transcript: string) => void;
@@ -84,27 +85,27 @@ export default function VoiceInput({ onTranscript, isDisabled }: VoiceInputProps
   return (
     <div className="flex flex-col items-center">
       {errorMsg && (
-        <div className="mb-2 flex items-center gap-1.5 rounded-lg bg-amber-950/60 border border-amber-800/40 px-3 py-1 text-[11px] text-amber-300">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+        <div role="alert" className="mb-2 flex max-w-xs items-center gap-1.5 rounded-lg bg-warning-soft px-3 py-1 text-[11px] text-fg">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-warning" />
           <span>{errorMsg}</span>
         </div>
       )}
 
       {isListening && (
-        <div className="mb-2 flex items-center gap-2 rounded-full bg-indigo-950/80 border border-indigo-500/40 px-4 py-1.5 shadow-lg shadow-indigo-500/20">
+        <div className="mb-2 flex items-center gap-2 rounded-full bg-accent-soft px-4 py-1.5" role="status">
           <div className="flex items-center gap-1">
-            <span className="w-1 bg-indigo-400 rounded-full animate-wave-bar"></span>
-            <span className="w-1 bg-purple-400 rounded-full animate-wave-bar-delay-1"></span>
-            <span className="w-1 bg-pink-400 rounded-full animate-wave-bar-delay-2"></span>
+            <span className="w-1 animate-wave-bar rounded-full bg-accent"></span>
+            <span className="w-1 animate-wave-bar-delay-1 rounded-full bg-accent"></span>
+            <span className="w-1 animate-wave-bar-delay-2 rounded-full bg-accent"></span>
           </div>
-          <span className="text-xs font-semibold text-indigo-200 animate-pulse">
-            Listening... Speak now
+          <span className="animate-pulse text-xs font-medium text-accent">
+            Mendengarkan... silakan bicara
           </span>
         </div>
       )}
 
       {transcriptPreview && isListening && (
-        <div className="mb-2 max-w-md rounded-xl bg-slate-900/90 border border-slate-700 p-2 text-xs text-slate-300 italic">
+        <div className="mb-2 max-w-md rounded-xl border border-line bg-surface p-2 text-xs text-muted italic">
           &ldquo;{transcriptPreview}&rdquo;
         </div>
       )}
@@ -113,12 +114,15 @@ export default function VoiceInput({ onTranscript, isDisabled }: VoiceInputProps
         type="button"
         onClick={toggleListening}
         disabled={isDisabled}
-        title={isListening ? "Stop listening" : "Speak using Microphone"}
-        className={`relative flex h-11 w-11 items-center justify-center rounded-xl transition-all duration-300 shadow-md ${
+        title={isListening ? 'Berhenti mendengarkan' : 'Bicara lewat mikrofon'}
+        aria-label={isListening ? 'Berhenti mendengarkan' : 'Bicara lewat mikrofon'}
+        aria-pressed={isListening}
+        className={cn(
+          'relative flex h-11 w-11 items-center justify-center rounded-xl transition-colors disabled:cursor-not-allowed disabled:opacity-50',
           isListening
-            ? 'bg-rose-600 text-white animate-pulse ring-4 ring-rose-500/30'
-            : 'bg-indigo-600 hover:bg-indigo-500 text-white hover:scale-105 shadow-indigo-500/20'
-        } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            ? 'animate-pulse bg-danger text-white ring-4 ring-danger/25 dark:text-bg'
+            : 'bg-accent text-accent-fg hover:bg-accent-hover'
+        )}
       >
         {isListening ? (
           <MicOff className="h-5 w-5" />

@@ -29,6 +29,28 @@ export interface DialogLine {
   translation?: string;
 }
 
+/** Perbandingan dua pola/makna yang mudah tertukar. */
+export interface Comparison {
+  a: ExampleSentence;
+  b: ExampleSentence;
+  explanation: string;
+}
+
+/** Contoh kesalahan umum beserta koreksinya. */
+export interface CommonMistake {
+  wrong: string;
+  correct: string;
+  reason: string;
+}
+
+/** Satu soal latihan. `answer` adalah jawaban utama; `alternatives` untuk jawaban lain yang juga benar. */
+export interface ExerciseItem {
+  prompt: string;
+  answer: string;
+  alternatives?: string[];
+  explanation?: string;
+}
+
 export type ActivityType = 'exercise' | 'recall' | 'evaluation';
 
 export interface LessonActivity {
@@ -36,8 +58,7 @@ export interface LessonActivity {
   type: ActivityType;
   title: string;
   instructions?: string;
-  /** Bentuk soal akan ditentukan oleh prompt kurikulum; dibiarkan generik di tahap ini. */
-  items?: unknown[];
+  items?: ExerciseItem[];
 }
 
 export interface LessonContent {
@@ -46,8 +67,11 @@ export interface LessonContent {
   patterns?: SentencePattern[];
   examples?: ExampleSentence[];
   expressions?: UsefulExpression[];
+  comparisons?: Comparison[];
+  mistakes?: CommonMistake[];
   dialog?: { title?: string; lines: DialogLine[] };
   activities?: LessonActivity[];
+  summary?: string[];
   reviewRecommendation?: string;
 }
 

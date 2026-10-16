@@ -16,7 +16,7 @@ export function MateriView() {
     <div>
       <PageHeader
         title="Materi"
-        description="Kurikulum bertingkat: Level → Modul → Materi → Aktivitas. Konten kurikulum belum ditambahkan; yang tampil masih kerangka."
+        description="Kurikulum bertingkat: Level → Modul → Materi → Aktivitas. Selesaikan materi secara berurutan untuk membuka materi berikutnya."
       />
       {!data ? (
         <div className="space-y-4">

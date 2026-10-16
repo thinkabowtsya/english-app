@@ -1,21 +1,40 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { VocabCard } from '@/lib/types';
 import Flashcard from '@/components/vocabulary/flashcard';
-import { BookOpen, Sparkles, RefreshCw, Bookmark, HelpCircle, CheckCircle, XCircle, Award } from 'lucide-react';
+import { BookOpen, RefreshCw, Bookmark, HelpCircle, CheckCircle, XCircle, Award, PartyPopper, Trash2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Alert, EmptyState, PageHeader, Skeleton } from '@/components/ui/feedback';
+import { PHRASE_REASONS, findOpenPhrase, getOpenPhrasesByReason, vocabNote } from '@/lib/phrase-reviews';
+import { addReview, removeReview } from '@/lib/storage/actions';
+import { useAppData } from '@/lib/storage/hooks';
+import { cn } from '@/lib/utils';
 
 const CATEGORIES = ['Daily', 'Business', 'Travel', 'Academic', 'Idioms & Slang'] as const;
 const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
+
+const TABS = [
+  { id: 'cards', label: 'Kartu', icon: BookOpen },
+  { id: 'quiz', label: 'Kuis', icon: HelpCircle },
+  { id: 'bookmarks', label: 'Tersimpan', icon: Bookmark },
+] as const;
 
 export default function VocabularyPage() {
   const [selectedCategory, setSelectedCategory] = useState<typeof CATEGORIES[number]>('Business');
   const [selectedLevel, setSelectedLevel] = useState<typeof LEVELS[number]>('B2');
   const [cards, setCards] = useState<VocabCard[]>([]);
-  const [bookmarks, setBookmarks] = useState<VocabCard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'cards' | 'quiz' | 'bookmarks'>('cards');
+
+  // Bookmark = frasa di daftar review (kind 'phrase', source 'manual'), tersimpan di localStorage.
+  const data = useAppData();
+  const reviews = data?.reviews ?? [];
+  const savedWords = getOpenPhrasesByReason(reviews, PHRASE_REASONS.vocabulary);
 
   // Quiz state
   const [quizIndex, setQuizIndex] = useState(0);
@@ -33,12 +52,18 @@ export default function VocabularyPage() {
       body: JSON.stringify({ category: selectedCategory, level: selectedLevel, count: 6 }),
       signal: controller.signal
     })
-      .then(res => res.json())
-      .then(data => {
-        if (data.items) setCards(data.items);
+      .then(async res => {
+        const body = await res.json().catch(() => null);
+        if (!res.ok || !Array.isArray(body?.items)) {
+          throw new Error(typeof body?.error === 'string' ? body.error : 'Gagal memuat kosakata. Coba lagi nanti.');
+        }
+        setCards(body.items);
+        setLoadError(null);
       })
       .catch(err => {
-        if (!controller.signal.aborted) console.error('Failed to fetch vocabulary:', err);
+        if (controller.signal.aborted) return;
+        console.error('Failed to fetch vocabulary:', err);
+        setLoadError(err instanceof Error ? err.message : 'Gagal memuat kosakata. Coba lagi nanti.');
       })
       .finally(() => {
         if (!controller.signal.aborted) setIsLoading(false);
@@ -46,12 +71,36 @@ export default function VocabularyPage() {
     return () => controller.abort();
   }, [selectedCategory, selectedLevel, reloadKey]);
 
+  const bookmarkState = (card: VocabCard) => {
+    const existing = findOpenPhrase(reviews, card.word);
+    const ownedHere = existing?.source === 'manual' && existing.reason === PHRASE_REASONS.vocabulary;
+    // Kata yang sudah disimpan dari fitur lain (mis. AI Coach) tidak dihapus dari sini.
+    const locked = !data || (!!existing && !ownedHere);
+    const label = !data ? 'Memuat daftar review...' : locked ? 'Sudah ada di daftar review' : undefined;
+    return { existing, locked, label };
+  };
+
   const toggleBookmark = (card: VocabCard) => {
-    if (bookmarks.some(b => b.id === card.id || b.word === card.word)) {
-      setBookmarks(bookmarks.filter(b => b.id !== card.id && b.word !== card.word));
+    const { existing, locked } = bookmarkState(card);
+    if (locked) return;
+    if (existing) {
+      removeReview(existing.id);
     } else {
-      setBookmarks([...bookmarks, card]);
+      addReview({
+        kind: 'phrase',
+        label: card.word,
+        note: vocabNote(card),
+        reason: PHRASE_REASONS.vocabulary,
+        lessonId: null,
+        source: 'manual',
+        nextReviewAt: null,
+      });
     }
+  };
+
+  const reload = () => {
+    setIsLoading(true);
+    setReloadKey(k => k + 1);
   };
 
   // Quiz helper: options for current card definition
@@ -96,76 +145,62 @@ export default function VocabularyPage() {
     setSelectedOption(null);
   };
 
-  return (
-    <div className="space-y-6">
-      
-      {/* Top Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 glass-panel rounded-2xl p-5 border border-slate-800">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="p-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
-              <BookOpen className="h-4 w-4" />
-            </span>
-            <h1 className="text-xl font-bold text-white tracking-tight">AI Vocabulary & Idiom Builder</h1>
-          </div>
-          <p className="text-xs text-slate-400">
-            Learn curated CEFR vocabulary and native idioms generated dynamically by Groq AI.
-          </p>
-        </div>
+  const pill = (active: boolean) =>
+    cn(
+      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+      active ? 'border-accent bg-accent text-accent-fg' : 'border-line text-muted hover:bg-surface-muted hover:text-fg'
+    );
 
-        {/* View Mode Tabs */}
-        <div className="flex items-center gap-2 rounded-xl bg-slate-900 border border-slate-800 p-1">
+  return (
+    <div className="space-y-5">
+
+      <PageHeader
+        title="Vocab & Idiom Builder"
+        description="Kosakata CEFR dan idiom native yang dibuat AI. Kata yang di-bookmark masuk ke daftar review."
+      />
+
+      {/* View Mode Tabs */}
+      <div role="tablist" aria-label="Mode tampilan" className="grid grid-cols-3 gap-1 rounded-xl border border-line bg-surface p-1 sm:inline-grid">
+        {TABS.map(({ id, label, icon: Icon }) => (
           <button
-            onClick={() => setActiveTab('cards')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              activeTab === 'cards' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <BookOpen className="h-3.5 w-3.5" />
-            <span>Cards</span>
-          </button>
-          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === id}
             onClick={() => {
-              setActiveTab('quiz');
-              resetQuiz();
+              setActiveTab(id);
+              if (id === 'quiz') resetQuiz();
             }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              activeTab === 'quiz' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
-            }`}
+            className={cn(
+              'flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium transition-colors sm:px-3',
+              activeTab === id ? 'bg-accent-soft text-accent' : 'text-muted hover:text-fg'
+            )}
           >
-            <HelpCircle className="h-3.5 w-3.5" />
-            <span>Quiz Practice</span>
+            <Icon className="h-3.5 w-3.5" />
+            <span>
+              {label}
+              {id === 'bookmarks' && ` (${savedWords.length})`}
+            </span>
           </button>
-          <button
-            onClick={() => setActiveTab('bookmarks')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-              activeTab === 'bookmarks' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Bookmark className="h-3.5 w-3.5" />
-            <span>Saved ({bookmarks.length})</span>
-          </button>
-        </div>
+        ))}
       </div>
 
       {/* Filters Bar */}
       {activeTab === 'cards' && (
-        <div className="glass-panel rounded-2xl p-4 border border-slate-800 flex flex-wrap items-center justify-between gap-4">
+        <Card className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
           {/* Category Pills */}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-bold text-slate-400 mr-1">Category:</span>
+            <span className="mr-1 text-xs font-medium text-muted">Kategori:</span>
             {CATEGORIES.map((cat) => (
               <button
                 key={cat}
+                type="button"
+                aria-pressed={selectedCategory === cat}
                 onClick={() => {
                   if (cat !== selectedCategory) setIsLoading(true);
                   setSelectedCategory(cat);
                 }}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-                  selectedCategory === cat
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
-                    : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
-                }`}
+                className={pill(selectedCategory === cat)}
               >
                 {cat}
               </button>
@@ -173,171 +208,206 @@ export default function VocabularyPage() {
           </div>
 
           {/* CEFR Level Selector & Refresh */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <span className="text-xs font-bold text-slate-400 mr-1">Level:</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="mr-1 text-xs font-medium text-muted">Level:</span>
               {LEVELS.map((lvl) => (
                 <button
                   key={lvl}
+                  type="button"
+                  aria-pressed={selectedLevel === lvl}
                   onClick={() => {
                     if (lvl !== selectedLevel) setIsLoading(true);
                     setSelectedLevel(lvl);
                   }}
-                  className={`px-2 py-0.5 rounded text-xs font-bold font-mono transition-all ${
+                  className={cn(
+                    'rounded-md border px-2 py-0.5 font-mono text-xs font-semibold transition-colors',
                     selectedLevel === lvl
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                  }`}
+                      ? 'border-accent bg-accent text-accent-fg'
+                      : 'border-line text-muted hover:bg-surface-muted hover:text-fg'
+                  )}
                 >
                   {lvl}
                 </button>
               ))}
             </div>
 
-            <button
-              onClick={() => {
-                setIsLoading(true);
-                setReloadKey(k => k + 1);
-              }}
-              disabled={isLoading}
-              className="flex items-center gap-1.5 rounded-xl bg-indigo-950/80 border border-indigo-700/60 px-3.5 py-1.5 text-xs font-semibold text-indigo-300 hover:bg-indigo-900 transition-colors disabled:opacity-50"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Generate New Set</span>
-            </button>
+            <Button size="sm" variant="secondary" onClick={reload} disabled={isLoading}>
+              <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
+              Buat set baru
+            </Button>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* CONTENT DISPLAY AREA */}
       {activeTab === 'cards' && (
         <>
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3" role="status" aria-label={`Membuat kosakata CEFR ${selectedLevel}`}>
               {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="h-80 rounded-2xl glass-panel border border-slate-800 p-6 flex flex-col justify-center items-center text-center animate-pulse">
-                  <Sparkles className="h-8 w-8 text-indigo-500/40 animate-spin mb-3" />
-                  <p className="text-xs text-indigo-300">Generating CEFR {selectedLevel} vocabulary...</p>
-                </div>
+                <Skeleton key={i} className="h-80 rounded-2xl" />
               ))}
             </div>
+          ) : loadError ? (
+            <Alert
+              tone="error"
+              title="Kosakata tidak dapat dimuat"
+              action={
+                <Button size="sm" variant="secondary" onClick={reload}>
+                  Coba lagi
+                </Button>
+              }
+            >
+              {loadError}
+            </Alert>
+          ) : cards.length === 0 ? (
+            <EmptyState icon={<BookOpen className="h-6 w-6" />} title="Belum ada kartu" description="Pilih kategori & level lalu buat set baru." />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {cards.map((card) => (
-                <Flashcard
-                  key={card.id || card.word}
-                  card={card}
-                  onBookmark={toggleBookmark}
-                  isBookmarked={bookmarks.some(b => b.word === card.word)}
-                />
-              ))}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {cards.map((card) => {
+                const { existing, locked, label } = bookmarkState(card);
+                return (
+                  <Flashcard
+                    key={card.id || card.word}
+                    card={card}
+                    onBookmark={toggleBookmark}
+                    isBookmarked={!!existing}
+                    bookmarkDisabled={locked}
+                    bookmarkLabel={label}
+                  />
+                );
+              })}
             </div>
           )}
         </>
       )}
 
       {/* QUIZ PRACTICE MODE */}
+      {activeTab === 'quiz' && cards.length === 0 && (
+        <EmptyState
+          icon={<HelpCircle className="h-6 w-6" />}
+          title="Belum ada kartu untuk kuis"
+          description="Muat set kosakata di tab Kartu terlebih dahulu."
+        />
+      )}
+
       {activeTab === 'quiz' && cards.length > 0 && (
-        <div className="max-w-2xl mx-auto glass-panel rounded-2xl border border-slate-800 p-6 sm:p-8 space-y-6">
-          
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        <Card className="mx-auto max-w-2xl space-y-5 p-5 sm:p-8">
+
+          <div className="flex items-center justify-between gap-3 border-b border-line pb-4">
             <div>
-              <span className="text-xs font-bold uppercase text-indigo-400">Vocabulary Quiz</span>
-              <h2 className="text-lg font-bold text-white">Question {quizIndex + 1} of {cards.length}</h2>
+              <span className="text-xs font-semibold text-accent uppercase">Kuis kosakata</span>
+              <h2 className="text-lg font-semibold text-fg">Soal {quizIndex + 1} dari {cards.length}</h2>
             </div>
-            <div className="flex items-center gap-2 rounded-full bg-slate-900 border border-slate-800 px-3 py-1">
-              <Award className="h-4 w-4 text-amber-400" />
-              <span className="text-xs font-extrabold text-white">Score: {quizScore}</span>
+            <div className="flex shrink-0 items-center gap-1.5 rounded-full bg-surface-muted px-3 py-1">
+              <Award className="h-4 w-4 text-warning" />
+              <span className="text-xs font-semibold text-fg tabular-nums">Skor: {quizScore}</span>
             </div>
           </div>
 
           {quizIndex < cards.length ? (
             <div className="space-y-5">
-              <div className="text-center py-4 rounded-2xl bg-slate-950/80 border border-slate-800">
-                <span className="text-xs font-mono text-slate-400 block mb-1">Select the correct Indonesian definition for:</span>
-                <h3 className="text-3xl font-extrabold text-white tracking-tight">{currentQuizCard.word}</h3>
-                <span className="text-xs text-indigo-300 font-mono">[{currentQuizCard.phonetic}]</span>
+              <div className="rounded-2xl bg-surface-muted px-4 py-5 text-center">
+                <span className="mb-1 block text-xs text-muted">Pilih arti bahasa Indonesia yang benar untuk:</span>
+                <h3 className="text-2xl font-bold tracking-tight break-words text-fg sm:text-3xl">{currentQuizCard.word}</h3>
+                <span className="font-mono text-xs text-accent">[{currentQuizCard.phonetic}]</span>
               </div>
 
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-2.5">
                 {quizOptions.map((opt, idx) => {
                   const isCorrect = opt === currentQuizCard.definitionId;
                   const isSelected = selectedOption === opt;
 
-                  let optionStyle = 'bg-slate-900 border-slate-800 text-slate-200 hover:border-indigo-500/50';
+                  let optionStyle = 'border-line bg-surface text-fg hover:bg-surface-muted';
                   if (quizAnswered) {
-                    if (isCorrect) optionStyle = 'bg-emerald-950/80 border-emerald-500 text-emerald-300 font-bold';
-                    else if (isSelected) optionStyle = 'bg-rose-950/80 border-rose-500 text-rose-300';
-                    else optionStyle = 'bg-slate-950 border-slate-900 text-slate-600 opacity-60';
+                    if (isCorrect) optionStyle = 'border-success bg-success-soft text-success font-semibold';
+                    else if (isSelected) optionStyle = 'border-danger bg-danger-soft text-danger';
+                    else optionStyle = 'border-line text-muted opacity-60';
                   }
 
                   return (
                     <button
                       key={idx}
+                      type="button"
                       onClick={() => handleQuizAnswer(opt)}
                       disabled={quizAnswered}
-                      className={`w-full text-left p-4 rounded-xl border text-xs transition-all flex items-center justify-between ${optionStyle}`}
+                      className={cn('flex w-full items-center justify-between gap-3 rounded-xl border p-3.5 text-left text-sm transition-colors', optionStyle)}
                     >
                       <span>{opt}</span>
-                      {quizAnswered && isCorrect && <CheckCircle className="h-4 w-4 text-emerald-400 shrink-0" />}
-                      {quizAnswered && isSelected && !isCorrect && <XCircle className="h-4 w-4 text-rose-400 shrink-0" />}
+                      {quizAnswered && isCorrect && <CheckCircle className="h-4 w-4 shrink-0" />}
+                      {quizAnswered && isSelected && !isCorrect && <XCircle className="h-4 w-4 shrink-0" />}
                     </button>
                   );
                 })}
               </div>
 
               {quizAnswered && (
-                <div className="pt-4 flex justify-end">
-                  <button
-                    onClick={handleNextQuiz}
-                    className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold text-xs shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all"
-                  >
-                    {quizIndex === cards.length - 1 ? 'Finish Quiz 🎉' : 'Next Question →'}
-                  </button>
+                <div className="flex justify-end pt-2">
+                  <Button onClick={handleNextQuiz}>
+                    {quizIndex === cards.length - 1 ? (
+                      <>
+                        <PartyPopper className="h-4 w-4" />
+                        Selesaikan kuis
+                      </>
+                    ) : (
+                      'Soal berikutnya →'
+                    )}
+                  </Button>
                 </div>
               )}
             </div>
           ) : (
-            <div className="text-center py-8 space-y-4">
-              <Sparkles className="h-12 w-12 text-amber-400 mx-auto animate-bounce" />
-              <h3 className="text-2xl font-extrabold text-white">Quiz Completed!</h3>
-              <p className="text-sm text-slate-300">
-                You scored <span className="text-indigo-400 font-bold">{quizScore}</span> out of {cards.length}!
+            <div className="space-y-4 py-8 text-center">
+              <PartyPopper className="mx-auto h-12 w-12 text-warning" />
+              <h3 className="text-2xl font-semibold text-fg">Kuis selesai!</h3>
+              <p className="text-sm text-muted">
+                Skor kamu <span className="font-semibold text-accent">{quizScore}</span> dari {cards.length}!
               </p>
-              <button
-                onClick={resetQuiz}
-                className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-xs hover:bg-indigo-500 transition-colors"
-              >
-                Try Again
-              </button>
+              <Button onClick={resetQuiz}>Ulangi</Button>
             </div>
           )}
 
-        </div>
+        </Card>
       )}
 
       {/* SAVED BOOKMARKS TAB */}
       {activeTab === 'bookmarks' && (
         <>
-          {bookmarks.length === 0 ? (
-            <div className="glass-panel rounded-2xl p-12 text-center border border-slate-800">
-              <Bookmark className="h-10 w-10 text-slate-600 mx-auto mb-3" />
-              <h3 className="text-lg font-bold text-white">Belum Ada Kata Tersimpan</h3>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
-                Klik ikon bookmark pada flashcard untuk menyimpan kosakata favorit Anda di sini.
-              </p>
-            </div>
+          {savedWords.length === 0 ? (
+            <EmptyState
+              icon={<Bookmark className="h-6 w-6" />}
+              title="Belum ada kata tersimpan"
+              description="Klik ikon bookmark pada flashcard untuk menyimpan kosakata ke daftar review."
+            />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {bookmarks.map((card) => (
-                <Flashcard
-                  key={card.id || card.word}
-                  card={card}
-                  onBookmark={toggleBookmark}
-                  isBookmarked={true}
-                />
-              ))}
-            </div>
+            <Card className="p-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
+                <p className="text-xs text-muted">Kata yang kamu bookmark ada di daftar review dan tetap tersimpan setelah halaman ditutup.</p>
+                <Link href="/latihan#review" className="text-xs font-medium text-accent hover:underline">
+                  Buka daftar review
+                </Link>
+              </div>
+              <ul className="divide-y divide-line">
+                {savedWords.map((item) => (
+                  <li key={item.id} className="flex items-start gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium break-words text-fg">{item.label}</p>
+                      {item.note && <p className="mt-0.5 text-xs break-words text-muted">{item.note}</p>}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => removeReview(item.id)}
+                      aria-label={`Hapus ${item.label} dari daftar review`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Hapus</span>
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </Card>
           )}
         </>
       )}

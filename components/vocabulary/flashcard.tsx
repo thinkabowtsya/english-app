@@ -4,14 +4,18 @@ import React, { useState } from 'react';
 import { VocabCard } from '@/lib/types';
 import { Volume2, RotateCw, Bookmark } from 'lucide-react';
 import { speakText } from '@/lib/speech';
+import { cn } from '@/lib/utils';
 
 interface FlashcardProps {
   card: VocabCard;
   onBookmark?: (card: VocabCard) => void;
   isBookmarked?: boolean;
+  /** Mis. data progres belum dimuat, atau kata sudah disimpan dari fitur lain. */
+  bookmarkDisabled?: boolean;
+  bookmarkLabel?: string;
 }
 
-export default function Flashcard({ card, onBookmark, isBookmarked }: FlashcardProps) {
+export default function Flashcard({ card, onBookmark, isBookmarked, bookmarkDisabled, bookmarkLabel }: FlashcardProps) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   const handleSpeak = (e: React.MouseEvent, text: string) => {
@@ -19,32 +23,35 @@ export default function Flashcard({ card, onBookmark, isBookmarked }: FlashcardP
     speakText(text, undefined, 'en-US');
   };
 
+  const label = bookmarkLabel ?? (isBookmarked ? 'Hapus dari daftar review' : 'Simpan ke daftar review');
+
   return (
     <div
       onClick={() => setIsFlipped(!isFlipped)}
-      className="group relative h-80 w-full cursor-pointer perspective-1000"
+      className="group relative h-80 w-full cursor-pointer perspective-[1000px]"
     >
       <div
-        className={`relative h-full w-full rounded-2xl transition-transform duration-500 transform-style-3d ${
-          isFlipped ? '[transform:rotateY(180deg)]' : ''
-        }`}
+        className={cn(
+          'relative h-full w-full rounded-2xl transition-transform duration-500 transform-3d',
+          isFlipped && '[transform:rotateY(180deg)]'
+        )}
       >
-        
+
         {/* FRONT OF CARD */}
-        <div className="absolute inset-0 h-full w-full rounded-2xl glass-panel p-6 flex flex-col justify-between border border-slate-800 shadow-xl backface-hidden group-hover:border-indigo-500/40 transition-colors">
-          
+        <div className="absolute inset-0 flex h-full w-full flex-col justify-between rounded-2xl border border-line bg-surface p-5 backface-hidden transition-colors group-hover:border-accent/50 sm:p-6">
+
           {/* Header Badge & Audio */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-indigo-950/80 border border-indigo-700/50 px-3 py-1 text-xs font-bold text-indigo-300">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-semibold text-accent">
                 {card.cefr}
               </span>
-              <span className="rounded-full bg-slate-900 border border-slate-800 px-3 py-1 text-xs font-medium text-slate-400">
+              <span className="truncate rounded-full bg-surface-muted px-2.5 py-0.5 text-xs text-muted">
                 {card.category}
               </span>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               {onBookmark && (
                 <button
                   type="button"
@@ -52,9 +59,14 @@ export default function Flashcard({ card, onBookmark, isBookmarked }: FlashcardP
                     e.stopPropagation();
                     onBookmark(card);
                   }}
-                  className={`p-2 rounded-xl transition-colors ${
-                    isBookmarked ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500 hover:text-white'
-                  }`}
+                  disabled={bookmarkDisabled}
+                  aria-pressed={!!isBookmarked}
+                  aria-label={label}
+                  title={label}
+                  className={cn(
+                    'rounded-lg p-2 transition-colors disabled:cursor-default disabled:opacity-60',
+                    isBookmarked ? 'bg-warning-soft text-warning' : 'text-muted hover:bg-surface-muted hover:text-fg'
+                  )}
                 >
                   <Bookmark className="h-4 w-4" fill={isBookmarked ? 'currentColor' : 'none'} />
                 </button>
@@ -62,8 +74,9 @@ export default function Flashcard({ card, onBookmark, isBookmarked }: FlashcardP
               <button
                 type="button"
                 onClick={(e) => handleSpeak(e, card.word)}
-                className="p-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 transition-colors"
-                title="Pronounce word"
+                className="rounded-lg bg-accent-soft p-2 text-accent transition-colors hover:bg-accent hover:text-accent-fg"
+                title="Ucapkan kata"
+                aria-label={`Ucapkan ${card.word}`}
               >
                 <Volume2 className="h-4 w-4" />
               </button>
@@ -72,63 +85,64 @@ export default function Flashcard({ card, onBookmark, isBookmarked }: FlashcardP
 
           {/* Main Word */}
           <div className="my-auto text-center">
-            <span className="text-xs font-mono font-medium text-slate-400 block mb-1">
+            <span className="mb-1 block font-mono text-xs text-muted">
               [{card.phonetic}] • {card.partOfSpeech}
             </span>
-            <h3 className="text-3xl font-extrabold text-white tracking-tight group-hover:text-indigo-300 transition-colors">
+            <h3 className="text-2xl font-bold tracking-tight break-words text-fg transition-colors group-hover:text-accent sm:text-3xl">
               {card.word}
             </h3>
-            <p className="mt-3 text-xs text-slate-300 font-medium max-w-xs mx-auto line-clamp-2">
+            <p className="mx-auto mt-3 line-clamp-3 max-w-xs text-xs text-muted">
               {card.definitionEn}
             </p>
           </div>
 
           {/* Flip Prompt Footer */}
-          <div className="flex items-center justify-center gap-1.5 text-xs text-indigo-400 font-semibold pt-3 border-t border-slate-800/60">
-            <RotateCw className="h-3.5 w-3.5 animate-spin-slow" />
-            <span>Click card to see translation & example</span>
+          <div className="flex items-center justify-center gap-1.5 border-t border-line pt-3 text-xs font-medium text-accent">
+            <RotateCw className="h-3.5 w-3.5" />
+            <span>Klik kartu untuk melihat arti & contoh</span>
           </div>
 
         </div>
 
         {/* BACK OF CARD */}
-        <div className="absolute inset-0 h-full w-full rounded-2xl glass-panel p-6 flex flex-col justify-between border border-indigo-800/60 bg-slate-900/95 shadow-2xl [transform:rotateY(180deg)] backface-hidden">
-          
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-            <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider">
+        <div className="absolute inset-0 flex h-full w-full [transform:rotateY(180deg)] flex-col justify-between rounded-2xl border border-accent/40 bg-surface p-5 backface-hidden sm:p-6">
+
+          <div className="flex items-center justify-between gap-2 border-b border-line pb-2">
+            <span className="truncate text-xs font-semibold tracking-wider text-accent uppercase">
               {card.word} ({card.partOfSpeech})
             </span>
-            <span className="text-xs text-slate-400 italic">Bahasa Indonesia</span>
+            <span className="shrink-0 text-xs text-muted italic">Bahasa Indonesia</span>
           </div>
 
           {/* Indonesian Definition & Example */}
-          <div className="my-auto space-y-3">
+          <div className="my-auto space-y-3 overflow-y-auto">
             <div>
-              <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Arti:</span>
-              <p className="text-sm font-semibold text-white">{card.definitionId}</p>
+              <span className="mb-1 block text-[10px] font-semibold text-muted uppercase">Arti:</span>
+              <p className="text-sm font-semibold text-fg">{card.definitionId}</p>
             </div>
 
-            <div className="rounded-xl bg-slate-950/80 p-3 border border-slate-800 space-y-1">
+            <div className="space-y-1 rounded-xl bg-surface-muted p-3">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase text-indigo-400">Contoh Kalimat:</span>
+                <span className="text-[10px] font-semibold text-accent uppercase">Contoh Kalimat:</span>
                 <button
                   type="button"
                   onClick={(e) => handleSpeak(e, card.exampleEn)}
-                  className="text-indigo-400 hover:text-white"
+                  className="rounded p-0.5 text-accent hover:text-fg"
+                  aria-label="Ucapkan contoh kalimat"
                 >
                   <Volume2 className="h-3.5 w-3.5" />
                 </button>
               </div>
-              <p className="text-xs text-slate-200 font-medium">&ldquo;{card.exampleEn}&rdquo;</p>
-              <p className="text-[11px] text-slate-400 italic">{card.exampleId}</p>
+              <p className="text-xs font-medium text-fg">&ldquo;{card.exampleEn}&rdquo;</p>
+              <p className="text-[11px] text-muted italic">{card.exampleId}</p>
             </div>
 
             {card.collocations && card.collocations.length > 0 && (
               <div>
-                <span className="text-[10px] font-bold uppercase text-slate-400 block mb-1">Kolokasi:</span>
+                <span className="mb-1 block text-[10px] font-semibold text-muted uppercase">Kolokasi:</span>
                 <div className="flex flex-wrap gap-1">
                   {card.collocations.map((c, i) => (
-                    <span key={i} className="text-[10px] bg-indigo-950 text-indigo-300 px-2 py-0.5 rounded border border-indigo-800/40">
+                    <span key={i} className="rounded bg-accent-soft px-2 py-0.5 text-[10px] text-accent">
                       {c}
                     </span>
                   ))}
@@ -137,9 +151,9 @@ export default function Flashcard({ card, onBookmark, isBookmarked }: FlashcardP
             )}
           </div>
 
-          <div className="flex items-center justify-center gap-1.5 text-xs text-slate-400 pt-2 border-t border-slate-800">
+          <div className="flex items-center justify-center gap-1.5 border-t border-line pt-2 text-xs text-muted">
             <RotateCw className="h-3.5 w-3.5" />
-            <span>Click to flip back</span>
+            <span>Klik untuk membalik kembali</span>
           </div>
 
         </div>

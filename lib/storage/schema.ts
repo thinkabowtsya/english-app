@@ -64,7 +64,7 @@ const storedSettingsSchema = z.object({
   coachDifficulty: settingsSchema.shape.coachDifficulty.catch(DEFAULT_SETTINGS.coachDifficulty),
 });
 
-const sessionSchema = z.object({
+export const sessionSchema = z.object({
   id,
   localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startedAt: epoch,
@@ -75,7 +75,7 @@ const sessionSchema = z.object({
   lessonId: id.nullable(),
 });
 
-const lessonProgressSchema = z.object({
+export const lessonProgressSchema = z.object({
   lessonId: id,
   moduleId: id,
   status: z.enum(['in_progress', 'completed', 'needs_review']),
@@ -85,7 +85,7 @@ const lessonProgressSchema = z.object({
   completedAt: epoch.nullable(),
 });
 
-const reviewSchema = z.object({
+export const reviewSchema = z.object({
   id,
   kind: z.enum(['lesson', 'pattern', 'phrase']),
   label: z.string().min(1).max(500),

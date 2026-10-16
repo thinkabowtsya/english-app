@@ -6,10 +6,16 @@ import { Message, Scenario, Correction } from '@/lib/types';
 import ScenarioSelector from '@/components/chat/scenario-selector';
 import ChatMessage from '@/components/chat/chat-message';
 import VoiceInput from '@/components/chat/voice-input';
-import { Send, RefreshCw, Volume2, Sparkles, Award, VolumeX } from 'lucide-react';
+import { Send, RefreshCw, Volume2, Award, VolumeX, LoaderCircle } from 'lucide-react';
 import { speakText, stopSpeaking } from '@/lib/speech';
 import { createId } from '@/lib/id';
 import { useHydrated } from '@/lib/storage/hooks';
+import { PHRASE_REASONS } from '@/lib/phrase-reviews';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge, PageHeader } from '@/components/ui/feedback';
+import { SavePhraseDialog, SavedPhraseNotice, type PhraseTarget } from '@/components/review/save-phrase-dialog';
 
 function initialMessages(scenario: Scenario): Message[] {
   return [
@@ -31,13 +37,16 @@ export default function PracticeStudioPage() {
   const [autoSpeakAI, setAutoSpeakAI] = useState(true);
   const [translatingId, setTranslatingId] = useState<string | null>(null);
   const [sessionScore, setSessionScore] = useState<number[]>([]);
+  const [saveTarget, setSaveTarget] = useState<PhraseTarget | null>(null);
+  const [savedLabel, setSavedLabel] = useState<string | null>(null);
   const mounted = useHydrated();
 
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom on new message
+  // Gulir hanya area pesan (bukan seluruh halaman) ke pesan terbaru.
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages, isLoadingAI]);
 
   // Handle Scenario Switch
@@ -163,103 +172,90 @@ export default function PracticeStudioPage() {
   if (!mounted) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <div className="flex items-center gap-2 text-indigo-400 font-semibold">
-          <Sparkles className="h-5 w-5 animate-spin" />
-          <span>Loading AI Conversation Studio...</span>
+        <div className="flex items-center gap-2 text-sm text-muted" role="status">
+          <LoaderCircle className="h-5 w-5 animate-spin" />
+          <span>Memuat Studio Role-play...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      
-      {/* Top Banner Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-panel rounded-2xl p-5 border border-slate-800">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="p-1.5 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            <h1 className="text-xl font-bold text-white tracking-tight">AI Conversation Studio</h1>
+    <div className="space-y-5">
+
+      <PageHeader
+        title="Studio Role-play"
+        description="Latihan bicara & mengetik dengan AI sesuai skenario, lengkap dengan koreksi grammar dan audio aksen."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            {avgScore !== null && (
+              <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-xs text-muted">
+                <Award className="h-3.5 w-3.5 text-warning" />
+                Skor sesi
+                <span className="font-semibold tabular-nums text-fg">{avgScore}/100</span>
+              </span>
+            )}
+
+            {/* Auto Voice Toggle */}
+            <Button
+              size="sm"
+              variant="secondary"
+              aria-pressed={autoSpeakAI}
+              onClick={() => {
+                setAutoSpeakAI(!autoSpeakAI);
+                if (autoSpeakAI) stopSpeaking();
+              }}
+              className={cn(autoSpeakAI && 'border-accent bg-accent-soft text-accent hover:bg-accent-soft')}
+            >
+              {autoSpeakAI ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+              Suara otomatis {autoSpeakAI ? 'ON' : 'OFF'}
+            </Button>
+
+            {/* Reset Chat */}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => handleScenarioChange(currentScenario)}
+              title="Ulangi percakapan"
+              aria-label="Ulangi percakapan"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
           </div>
-          <p className="text-xs text-slate-400">
-            Practice speaking & typing with native AI, get instant grammar analysis and accent audio.
-          </p>
-        </div>
-
-        {/* Controls & Fluency Tracker */}
-        <div className="flex items-center gap-3">
-          {avgScore !== null && (
-            <div className="flex items-center gap-2 rounded-xl bg-slate-900 border border-slate-700 px-3.5 py-1.5 shadow-sm">
-              <Award className="h-4 w-4 text-amber-400" />
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Session Score</span>
-                <span className="text-sm font-extrabold text-indigo-400">{avgScore}/100</span>
-              </div>
-            </div>
-          )}
-
-          {/* Auto Voice Toggle */}
-          <button
-            type="button"
-            onClick={() => {
-              setAutoSpeakAI(!autoSpeakAI);
-              if (autoSpeakAI) stopSpeaking();
-            }}
-            className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all border ${
-              autoSpeakAI
-                ? 'bg-indigo-950/80 border-indigo-600/50 text-indigo-300 shadow-md shadow-indigo-500/10'
-                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {autoSpeakAI ? <Volume2 className="h-4 w-4 text-indigo-400" /> : <VolumeX className="h-4 w-4" />}
-            <span>Auto Voice {autoSpeakAI ? 'ON' : 'OFF'}</span>
-          </button>
-
-          {/* Reset Chat */}
-          <button
-            type="button"
-            onClick={() => handleScenarioChange(currentScenario)}
-            title="Reset conversation"
-            className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Scenario Selector */}
-      <div>
-        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2 px-1">
-          Select Practice Scenario
-        </label>
+      <section aria-labelledby="scenario-heading">
+        <h2 id="scenario-heading" className="mb-2 px-1 text-xs font-medium text-muted">
+          Pilih skenario latihan
+        </h2>
         <ScenarioSelector
           currentScenario={currentScenario}
           onSelectScenario={handleScenarioChange}
         />
-      </div>
+      </section>
+
+      {savedLabel && <SavedPhraseNotice label={savedLabel} onDismiss={() => setSavedLabel(null)} />}
 
       {/* Main Chat Box Container */}
-      <div className="glass-panel rounded-2xl border border-slate-800 overflow-hidden flex flex-col h-[580px] shadow-2xl">
-        
+      <Card className="flex h-[70vh] min-h-[28rem] flex-col overflow-hidden p-0 lg:h-[580px]">
+
         {/* Chat Header Bar */}
-        <div className="px-5 py-3 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></div>
-            <div>
-              <h3 className="text-sm font-bold text-white">{currentScenario.title}</h3>
-              <p className="text-[11px] text-slate-400">Persona: {currentScenario.aiRole}</p>
+        <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="h-2.5 w-2.5 shrink-0 animate-pulse rounded-full bg-success" aria-hidden></span>
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-semibold text-fg">{currentScenario.title}</h3>
+              <p className="truncate text-[11px] text-muted">Persona: {currentScenario.aiRole}</p>
             </div>
           </div>
 
-          <span className="text-[11px] font-semibold text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-2.5 py-0.5 rounded-full">
-            {currentScenario.level}
-          </span>
+          <Badge tone="accent">{currentScenario.level}</Badge>
         </div>
 
         {/* Messages Stream */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
+        <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-5" aria-live="polite">
           {messages.map((msg) => (
             <ChatMessage
               key={msg.id}
@@ -267,32 +263,28 @@ export default function PracticeStudioPage() {
               scenarioName={currentScenario.aiRole}
               onTranslate={handleTranslateMessage}
               isTranslating={translatingId === msg.id}
+              onSavePhrase={(phrase, note) => setSaveTarget({ phrase, note })}
             />
           ))}
 
           {isLoadingAI && (
-            <div className="flex gap-3 my-4 items-center">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-600 text-white">
-                <Sparkles className="h-5 w-5 animate-spin" />
-              </div>
-              <div className="rounded-2xl bg-slate-900 border border-slate-800 px-4 py-2.5 text-xs text-indigo-300 animate-pulse font-medium">
-                {currentScenario.aiRole} is thinking and formulating response...
-              </div>
+            <div className="flex items-center gap-2 text-sm text-muted" role="status">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              {currentScenario.aiRole} sedang menyusun balasan...
             </div>
           )}
-          
-          <div ref={chatEndRef} />
         </div>
 
         {/* Suggested Prompts Pill Container */}
         {messages.length <= 2 && (
-          <div className="px-4 py-2 bg-slate-950/40 border-t border-slate-800/40 flex items-center gap-2 overflow-x-auto scrollbar-none">
-            <span className="text-[11px] font-semibold text-slate-400 shrink-0">Try saying:</span>
+          <div className="flex items-center gap-2 overflow-x-auto border-t border-line px-4 py-2">
+            <span className="shrink-0 text-[11px] font-medium text-muted">Coba katakan:</span>
             {currentScenario.suggestedPrompts.map((prompt, idx) => (
               <button
                 key={idx}
+                type="button"
                 onClick={() => handleSendMessage(prompt)}
-                className="text-xs bg-slate-900 hover:bg-slate-800 text-indigo-300 hover:text-white px-3 py-1 rounded-full border border-slate-700/60 shrink-0 transition-colors"
+                className="shrink-0 rounded-full border border-line px-3 py-1 text-xs text-fg transition-colors hover:bg-surface-muted"
               >
                 &ldquo;{prompt}&rdquo;
               </button>
@@ -301,8 +293,8 @@ export default function PracticeStudioPage() {
         )}
 
         {/* Input Bar with STT Mic & Send */}
-        <div className="p-3 sm:p-4 border-t border-slate-800 bg-slate-950/80 flex items-center gap-3">
-          
+        <div className="flex items-end gap-2 border-t border-line p-3 sm:gap-3">
+
           {/* Web Speech API Microphone Input */}
           <VoiceInput
             onTranscript={(transcribed) => {
@@ -312,8 +304,12 @@ export default function PracticeStudioPage() {
           />
 
           {/* Text Input Field */}
-          <div className="relative flex-1">
+          <div className="relative min-w-0 flex-1">
+            <label htmlFor="practice-input" className="sr-only">
+              Jawaban kamu
+            </label>
             <input
+              id="practice-input"
               type="text"
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
@@ -323,24 +319,34 @@ export default function PracticeStudioPage() {
                   handleSendMessage();
                 }
               }}
-              placeholder="Type your English response or use microphone to speak..."
+              placeholder="Ketik jawaban dalam bahasa Inggris atau pakai mikrofon..."
               disabled={isLoadingAI}
-              className="w-full rounded-xl bg-slate-900 border border-slate-700/80 px-4 py-3 text-sm text-white placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-all"
+              className="h-11 w-full rounded-xl border border-line bg-surface px-3.5 text-sm text-fg placeholder:text-muted disabled:opacity-60"
             />
           </div>
 
           {/* Send Button */}
-          <button
-            type="button"
+          <Button
             onClick={() => handleSendMessage()}
             disabled={!inputText.trim() || isLoadingAI}
-            className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-semibold shadow-lg shadow-indigo-500/25 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:hover:scale-100 transition-all shrink-0"
+            aria-label="Kirim pesan"
+            className="h-11 w-11 rounded-xl px-0"
           >
             <Send className="h-5 w-5" />
-          </button>
+          </Button>
         </div>
 
-      </div>
+      </Card>
+
+      <SavePhraseDialog
+        target={saveTarget}
+        reason={PHRASE_REASONS.practice}
+        onClose={() => setSaveTarget(null)}
+        onSaved={(label) => {
+          setSaveTarget(null);
+          setSavedLabel(label);
+        }}
+      />
 
     </div>
   );

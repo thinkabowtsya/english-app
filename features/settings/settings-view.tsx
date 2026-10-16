@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, type FormEvent, type ReactNode } from 'react';
-import { Download, Monitor, Moon, RotateCcw, Save, Sun } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { CloudUpload, Download, LogIn, Monitor, Moon, RotateCcw, Save, Sun } from 'lucide-react';
+import { SignOutButton } from '@/components/app-shell/sign-out-button';
+import { Button, buttonClasses } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Alert, PageHeader, Skeleton } from '@/components/ui/feedback';
 import { ConfirmDialog } from '@/components/ui/modal';
 import { notificationSupported, requestNotificationPermission } from '@/lib/browser-alerts';
-import { resetProgress, updateSettings } from '@/lib/storage/actions';
-import { useAppData } from '@/lib/storage/hooks';
+import { getLegacySummary, importLegacyData, resetProgress, updateSettings } from '@/lib/storage/actions';
+import { useAppData, useCloudState } from '@/lib/storage/hooks';
 import { settingsSchema } from '@/lib/storage/schema';
 import { MAX_SESSION_MINUTES, MIN_SESSION_MINUTES } from '@/lib/timer';
 import { cn } from '@/lib/utils';
@@ -18,24 +20,54 @@ const inputCls = 'h-10 w-full rounded-lg border border-line bg-surface px-3 text
 
 export function SettingsView() {
   const data = useAppData();
-  const [saved, setSaved] = useState(false);
+  const cloud = useCloudState();
+  const signedIn = cloud.userId !== null;
+  const [saved, setSaved] = useState<'ok' | 'failed' | null>(null);
   return (
     <div className="space-y-6">
-      <PageHeader title="Pengaturan" description="Preferensi belajar dan tampilan. Tersimpan di browser ini." />
+      <PageHeader
+        title="Pengaturan"
+        description={
+          signedIn
+            ? 'Pengaturan belajar tersinkron ke akunmu; tema, suara, dan notifikasi berlaku untuk perangkat ini.'
+            : 'Mode tamu: semua pengaturan dan progres tersimpan di browser ini saja.'
+        }
+      />
       {data ? (
         <>
           {saved && (
-            <Alert tone="success" action={<Button size="sm" variant="ghost" onClick={() => setSaved(false)}>Tutup</Button>}>
-              Pengaturan disimpan.
+            <Alert
+              tone={saved === 'ok' ? 'success' : 'error'}
+              action={
+                <Button size="sm" variant="ghost" onClick={() => setSaved(null)}>
+                  Tutup
+                </Button>
+              }
+            >
+              {saved === 'ok'
+                ? 'Pengaturan disimpan.'
+                : 'Pengaturan berubah di perangkat ini tetapi gagal disimpan ke cloud. Coba simpan lagi.'}
             </Alert>
           )}
           <SettingsForm
             key={JSON.stringify(data.settings)}
             settings={data.settings}
-            onSaved={() => setSaved(true)}
-            onEdit={() => setSaved(false)}
+            onSaved={(ok) => setSaved(ok ? 'ok' : 'failed')}
+            onEdit={() => setSaved(null)}
           />
-          <DataSection data={data} />
+          <LegacyImportCard />
+          <DataSection data={data} signedIn={signedIn} />
+          <Card className="lg:hidden">
+            <CardHeader title="Akun" description={signedIn ? undefined : 'Masuk agar progres tersinkron antar perangkat.'} />
+            {signedIn ? (
+              <SignOutButton className="-ml-3" />
+            ) : (
+              <Link href="/login" className={buttonClasses('secondary', 'sm')}>
+                <LogIn className="h-4 w-4" />
+                Masuk
+              </Link>
+            )}
+          </Card>
         </>
       ) : (
         <Skeleton className="h-96" />
@@ -52,7 +84,7 @@ function SettingsForm({
   onEdit,
 }: {
   settings: Settings;
-  onSaved: () => void;
+  onSaved: (ok: boolean) => void;
   onEdit: () => void;
 }) {
   const [displayName, setDisplayName] = useState(settings.displayName);
@@ -84,7 +116,9 @@ function SettingsForm({
     }
   };
 
-  const onSubmit = (event: FormEvent) => {
+  const [saving, setSaving] = useState(false);
+
+  const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
     const parsed = settingsSchema.safeParse({
       displayName,
@@ -107,8 +141,9 @@ function SettingsForm({
     }
     setErrors({});
     setNotice(null);
-    updateSettings(parsed.data);
-    onSaved();
+    setSaving(true);
+    // Form dimuat ulang (key berubah) setelah data diperbarui; hasil disampaikan ke induk.
+    onSaved(await updateSettings(parsed.data));
   };
 
   return (
@@ -216,19 +251,20 @@ function SettingsForm({
 
       {notice && <Alert tone="error">{notice}</Alert>}
       <div className="flex justify-end">
-        <Button type="submit">
+        <Button type="submit" disabled={saving}>
           <Save className="h-4 w-4" />
-          Simpan pengaturan
+          {saving ? 'Menyimpan…' : 'Simpan pengaturan'}
         </Button>
       </div>
     </form>
   );
 }
 
-function DataSection({ data }: { data: AppData }) {
+function DataSection({ data, signedIn }: { data: AppData; signedIn: boolean }) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [typed, setTyped] = useState('');
-  const [done, setDone] = useState(false);
+  const [result, setResult] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const exportData = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -244,12 +280,13 @@ function DataSection({ data }: { data: AppData }) {
     <Card>
       <CardHeader title="Data & privasi" />
       <p className="mb-4 text-sm text-muted">
-        Aplikasi ini personal (single-user) dan belum memiliki autentikasi. Progres disimpan di localStorage browser ini —
-        bukan penyimpanan yang aman, jadi jangan simpan informasi sensitif. Data tidak tersinkron antar perangkat.
+        {signedIn
+          ? 'Aplikasi pribadi dengan satu akun. Progres disimpan di Supabase (dilindungi Row Level Security sehingga hanya akunmu yang bisa membacanya) dan tersinkron antar perangkat. Tema, suara, dan notifikasi hanya tersimpan di perangkat ini.'
+          : 'Mode tamu: progres hanya tersimpan di localStorage browser ini — tidak tersinkron, dan hilang bila data situs dihapus. localStorage bukan penyimpanan aman, jadi jangan simpan informasi sensitif.'}
       </p>
-      {done && (
-        <Alert tone="success" className="mb-4">
-          Progres telah direset.
+      {result && (
+        <Alert tone={result.tone} className="mb-4">
+          {result.text}
         </Alert>
       )}
       <div className="flex flex-wrap gap-2">
@@ -262,7 +299,7 @@ function DataSection({ data }: { data: AppData }) {
           className="text-danger hover:text-danger"
           onClick={() => {
             setTyped('');
-            setDone(false);
+            setResult(null);
             setConfirmOpen(true);
           }}
         >
@@ -274,18 +311,20 @@ function DataSection({ data }: { data: AppData }) {
         open={confirmOpen}
         title="Reset seluruh progres?"
         tone="danger"
-        confirmLabel="Reset progres"
-        confirmDisabled={typed.trim().toUpperCase() !== 'RESET'}
+        confirmLabel={busy ? 'Mereset…' : 'Reset progres'}
+        confirmDisabled={busy || typed.trim().toUpperCase() !== 'RESET'}
         onCancel={() => setConfirmOpen(false)}
-        onConfirm={() => {
-          resetProgress(data);
+        onConfirm={async () => {
+          setBusy(true);
+          const res = await resetProgress(data);
+          setBusy(false);
           setConfirmOpen(false);
-          setDone(true);
+          setResult(res.ok ? { tone: 'success', text: 'Progres di cloud telah direset.' } : { tone: 'error', text: res.error });
         }}
       >
         <p>
-          Riwayat sesi ({data.sessions.length}), progres materi, daftar review, dan hasil evaluasi akan dihapus permanen.
-          Pengaturan tetap disimpan. Sesi yang sedang berjalan juga dibatalkan.
+          Riwayat sesi ({data.sessions.length}), progres materi, dan daftar review di cloud akan dihapus permanen dari
+          semua perangkat. Pengaturan tetap disimpan. Sesi yang sedang berjalan juga dibatalkan.
         </p>
         <label htmlFor="reset-confirm" className="mt-3 block text-xs">
           Ketik <strong className="text-fg">RESET</strong> untuk melanjutkan
@@ -353,5 +392,61 @@ function Toggle({
         {hint && <span className="block text-xs text-muted">{hint}</span>}
       </span>
     </label>
+  );
+}
+
+/** Impor data versi lokal lama (sebelum login/Supabase) — hanya atas konfirmasi pengguna. */
+function LegacyImportCard() {
+  const cloud = useCloudState();
+  const [confirm, setConfirm] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const summary = cloud.userId ? getLegacySummary(cloud.userId) : null;
+  if (!summary || (summary.imported && !message)) return null;
+
+  return (
+    <Card>
+      <CardHeader
+        icon={<CloudUpload className="h-4 w-4" />}
+        title="Data lokal lama ditemukan"
+        description="Progres dari versi sebelum login masih tersimpan di browser ini."
+      />
+      <p className="mb-3 text-sm text-muted">
+        {summary.sessions} sesi, {summary.lessons} progres materi, {summary.reviews} item review. Impor hanya jika data
+        ini memang milikmu. Data lokal tidak dihapus, dan data yang sudah ada di cloud tidak ditimpa.
+      </p>
+      {message && (
+        <Alert tone={message.tone} className="mb-3">
+          {message.text}
+        </Alert>
+      )}
+      {!summary.imported && (
+        <Button variant="secondary" disabled={busy} onClick={() => setConfirm(true)}>
+          <CloudUpload className="h-4 w-4" />
+          {busy ? 'Mengimpor…' : 'Impor ke akun ini'}
+        </Button>
+      )}
+      <ConfirmDialog
+        open={confirm}
+        title="Impor data lokal ke akun ini?"
+        confirmLabel="Impor"
+        onCancel={() => setConfirm(false)}
+        onConfirm={async () => {
+          setConfirm(false);
+          setBusy(true);
+          const res = await importLegacyData();
+          setBusy(false);
+          setMessage(
+            res.ok
+              ? {
+                  tone: 'success',
+                  text: `${res.sessions} sesi diimpor${res.skipped ? `, ${res.skipped} item dilewati (duplikat/tidak valid)` : ''}.`,
+                }
+              : { tone: 'error', text: res.error },
+          );
+        }}
+        description="Data akan dikirim ke akun Supabase yang sedang login. Impor ulang aman: item yang sama tidak digandakan."
+      />
+    </Card>
   );
 }

@@ -113,7 +113,10 @@ export function LatihanView() {
         <h2 id="existing-tools" className="mb-1 text-sm font-semibold text-fg">
           Alat latihan yang sudah ada
         </h2>
-        <p className="mb-3 text-xs text-muted">Fitur lama yang tetap tersedia. Belum tercatat di progres.</p>
+        <p className="mb-3 text-xs text-muted">
+          Kata yang di-bookmark di Vocab Builder masuk ke daftar review. Waktu belajar hanya dicatat lewat Daily
+          Learning Timer.
+        </p>
         <div className="grid gap-4 md:grid-cols-2">
           {EXISTING_TOOLS.map((tool) => {
             const Icon = tool.icon;

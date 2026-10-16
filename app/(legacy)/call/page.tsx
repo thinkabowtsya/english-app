@@ -1,11 +1,17 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { PhoneCall, PhoneOff, Mic, MicOff, Volume2, VolumeX, Sparkles, Shuffle, Check, RefreshCw } from 'lucide-react';
+import { PhoneCall, PhoneOff, Mic, MicOff, Volume2, VolumeX, Sparkles, Shuffle, Check, RefreshCw, BookmarkPlus } from 'lucide-react';
 import { speakText, stopSpeaking, createSpeechRecognizer, isSpeechRecognitionSupported } from '@/lib/speech';
 import { Correction } from '@/lib/types';
 import CorrectionCard from '@/components/chat/correction-card';
 import { useHydrated } from '@/lib/storage/hooks';
+import { PHRASE_MAX_CHARS, PHRASE_REASONS } from '@/lib/phrase-reviews';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge, PageHeader } from '@/components/ui/feedback';
+import { SavePhraseDialog, SavedPhraseNotice, type PhraseTarget } from '@/components/review/save-phrase-dialog';
 
 interface TopicSuggestion {
   id: string;
@@ -69,6 +75,8 @@ export default function VoiceCallStudioPage() {
   const [transcriptHistory, setTranscriptHistory] = useState<{ role: 'user' | 'ai'; text: string; time: string; correction?: Correction | null }[]>([]);
   const [currentTranscript, setCurrentTranscript] = useState('');
   const [callSummaryScores, setCallSummaryScores] = useState<number[]>([]);
+  const [saveTarget, setSaveTarget] = useState<PhraseTarget | null>(null);
+  const [savedLabel, setSavedLabel] = useState<string | null>(null);
   const mounted = useHydrated();
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -225,6 +233,7 @@ export default function VoiceCallStudioPage() {
     setCallSeconds(0);
     setTranscriptHistory([]);
     setCallSummaryScores([]);
+    setSavedLabel(null);
 
     setTimeout(() => {
       setCallState('connected');
@@ -272,139 +281,127 @@ export default function VoiceCallStudioPage() {
 
   if (!mounted) return null;
 
-  return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      
-      {/* Top Banner Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 glass-panel rounded-2xl p-5 border border-slate-800">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="p-1.5 rounded-lg bg-emerald-600/20 text-emerald-400 border border-emerald-500/30">
-              <PhoneCall className="h-4 w-4" />
-            </span>
-            <h1 className="text-xl font-bold text-white tracking-tight">AI Voice Call Studio</h1>
-          </div>
-          <p className="text-xs text-slate-400">
-            Telepon bareng AI secara bebas membahas topik apa saja. (Stimuler Style Call)
-          </p>
-        </div>
+  const lastLine = transcriptHistory[transcriptHistory.length - 1];
 
-        <div className="flex items-center gap-2 rounded-full bg-emerald-950/50 border border-emerald-800/40 px-3.5 py-1.5 text-xs font-semibold text-emerald-300">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
-          <span>Hands-free Voice Engine</span>
-        </div>
-      </div>
+  return (
+    <div className="mx-auto max-w-4xl space-y-5">
+
+      <PageHeader
+        title="Panggilan Suara AI"
+        description="Telepon bareng AI secara bebas membahas topik apa saja, hands-free dengan suara."
+        action={
+          <Badge tone="success">
+            <span className="h-1.5 w-1.5 rounded-full bg-success" aria-hidden></span>
+            Mesin suara hands-free
+          </Badge>
+        }
+      />
 
       {/* CALL STATE 1: IDLE / PRE-CALL SCREEN */}
       {callState === 'idle' && (
-        <div className="glass-panel rounded-2xl border border-slate-800 p-6 sm:p-8 space-y-6 shadow-2xl">
-          
+        <Card className="space-y-6 p-5 sm:p-8">
+
           {/* Main Call Avatar & Quick Start Free Call Button */}
-          <div className="text-center space-y-4 max-w-lg mx-auto py-2">
-            <div className="h-20 w-20 mx-auto rounded-full bg-gradient-to-tr from-emerald-500 via-teal-500 to-indigo-500 p-1 shadow-xl shadow-emerald-500/25">
-              <div className="h-full w-full rounded-full bg-slate-950 flex items-center justify-center text-emerald-400">
-                <PhoneCall className="h-9 w-9 animate-pulse" />
-              </div>
+          <div className="mx-auto max-w-lg space-y-4 py-2 text-center">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-success-soft text-success ring-4 ring-success/15">
+              <PhoneCall className="h-9 w-9" />
             </div>
 
             <div>
-              <h2 className="text-2xl font-extrabold text-white">Telepon Bareng AI (Bebas Apa Saja)</h2>
-              <p className="text-xs text-slate-300 mt-1">
-                Langsung telepon dan bicarakan topik apapun secara bebas tanpa batasan!
+              <h2 className="text-xl font-semibold text-fg sm:text-2xl">Telepon Bareng AI (Bebas Apa Saja)</h2>
+              <p className="mt-1 text-sm text-muted">
+                Langsung telepon dan bicarakan topik apa pun secara bebas tanpa batasan!
               </p>
             </div>
 
             {/* Primary Feature: Direct Free Call Button */}
             <div className="pt-2">
-              <button
+              <Button
+                size="lg"
                 onClick={() => {
                   setSelectedTopic(null);
                   handleStartCall();
                 }}
-                className="w-full sm:w-auto px-10 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-indigo-600 text-white font-extrabold text-base shadow-2xl shadow-emerald-500/30 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3 mx-auto"
+                className="w-full sm:w-auto"
               >
-                <PhoneCall className="h-6 w-6" />
-                <span>Mulai Telepon Bebas Sekarang</span>
-              </button>
+                <PhoneCall className="h-5 w-5" />
+                Mulai Telepon Bebas Sekarang
+              </Button>
             </div>
           </div>
 
-          <div className="relative flex py-2 items-center">
-            <div className="flex-grow border-t border-slate-800"></div>
-            <span className="flex-shrink mx-4 text-[11px] font-bold text-slate-500 uppercase tracking-widest bg-slate-950 px-3 py-1 rounded-full border border-slate-800">
-              Atau (Opsional) Tentukan Topik Sendiri
+          <div className="flex items-center gap-3">
+            <div className="flex-grow border-t border-line"></div>
+            <span className="shrink text-center text-[11px] font-medium tracking-wide text-muted uppercase">
+              Atau (opsional) tentukan topik sendiri
             </span>
-            <div className="flex-grow border-t border-slate-800"></div>
+            <div className="flex-grow border-t border-line"></div>
           </div>
 
           {/* Custom Topic Input */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-slate-300 block">
-              Tulis Topik Bebas Yang Ingin Dibahas (Opsional):
+            <label htmlFor="call-topic" className="block text-xs font-medium text-fg">
+              Tulis topik bebas yang ingin dibahas (opsional):
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <input
+                id="call-topic"
                 type="text"
                 value={customTopic}
                 onChange={(e) => {
                   setCustomTopic(e.target.value);
                   if (e.target.value) setSelectedTopic(null);
                 }}
-                placeholder="Contoh: Diskusi game favorit, hobi fotografi, rencana liburan..."
-                className="flex-1 rounded-xl bg-slate-900 border border-slate-800 px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                placeholder="Contoh: game favorit, hobi fotografi, rencana liburan..."
+                className="h-10 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-sm text-fg placeholder:text-muted"
               />
               {customTopic && (
-                <button
-                  onClick={() => handleStartCall()}
-                  className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors"
-                >
+                <Button onClick={() => handleStartCall()}>
                   Telepon Topik Ini
-                </button>
+                </Button>
               )}
             </div>
           </div>
 
           {/* Optional Topic Suggestions (Saran Topik jika bingung) */}
           <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
-                Bingung Mau Bahas Apa? Pilihan Rekomendasi Topik (Opsional):
-              </label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="flex items-center gap-1.5 text-xs font-medium text-muted">
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
+                Bingung mau bahas apa? Pilih rekomendasi topik (opsional):
+              </h3>
 
-              <button
-                type="button"
-                onClick={handlePickRandomTopic}
-                className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 font-semibold"
-              >
+              <Button size="sm" variant="ghost" onClick={handlePickRandomTopic} className="text-accent">
                 <Shuffle className="h-3.5 w-3.5" />
-                <span>Acak Topik</span>
-              </button>
+                Acak Topik
+              </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div role="radiogroup" aria-label="Rekomendasi topik" className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
               {TOPIC_SUGGESTIONS.map((topic) => {
                 const isSelected = selectedTopic?.id === topic.id;
                 return (
                   <button
                     key={topic.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
                     onClick={() => {
                       setSelectedTopic(topic);
                       setCustomTopic('');
                     }}
-                    className={`text-left p-3.5 rounded-xl transition-all border flex items-start gap-3 ${
-                      isSelected
-                        ? 'bg-slate-900 border-2 border-emerald-500 shadow-lg shadow-emerald-500/15'
-                        : 'bg-slate-950/60 border-slate-800 hover:bg-slate-900/60 hover:border-slate-700'
-                    }`}
+                    className={cn(
+                      'flex items-start gap-3 rounded-xl border p-3.5 text-left transition-colors',
+                      isSelected ? 'border-accent bg-accent-soft' : 'border-line hover:bg-surface-muted'
+                    )}
                   >
-                    <span className="text-xl">{topic.icon}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold text-white">{topic.title}</h4>
-                        {isSelected && <Check className="h-4 w-4 text-emerald-400 shrink-0" />}
+                    <span className="text-xl" aria-hidden>{topic.icon}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <h4 className={cn('text-xs font-semibold', isSelected ? 'text-accent' : 'text-fg')}>{topic.title}</h4>
+                        {isSelected && <Check className="h-4 w-4 shrink-0 text-accent" />}
                       </div>
-                      <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1 italic">
+                      <p className="mt-0.5 line-clamp-1 text-[11px] text-muted italic">
                         &ldquo;{topic.aiOpener}&rdquo;
                       </p>
                     </div>
@@ -414,177 +411,206 @@ export default function VoiceCallStudioPage() {
             </div>
           </div>
 
-        </div>
+        </Card>
       )}
 
       {/* CALL STATE 2: CALL IN PROGRESS (CALLING & CONNECTED) */}
       {(callState === 'calling' || callState === 'connected') && (
-        <div className="glass-panel rounded-3xl border border-slate-800 p-6 sm:p-10 shadow-2xl relative overflow-hidden flex flex-col items-center justify-between min-h-[550px] bg-slate-950/95">
-          
-          {/* Ambient Glows */}
-          <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-emerald-500/10 to-transparent pointer-events-none"></div>
+        <Card className="relative flex min-h-[32rem] flex-col items-center justify-between gap-6 overflow-hidden p-5 sm:min-h-[550px] sm:p-10">
 
           {/* Call Top Bar */}
-          <div className="w-full flex items-center justify-between z-10">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-ping"></span>
-              <span className="text-xs font-mono font-bold text-emerald-400 uppercase tracking-widest">
-                {callState === 'calling' ? 'Calling...' : 'Live Voice Call Connected'}
+              <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-success" aria-hidden></span>
+              <span className="font-mono text-xs font-semibold tracking-widest text-success uppercase" role="status">
+                {callState === 'calling' ? 'Memanggil...' : 'Panggilan tersambung'}
               </span>
             </div>
 
-            <span className="font-mono text-sm font-extrabold text-slate-300 bg-slate-900 border border-slate-800 px-3.5 py-1 rounded-full">
+            <span className="rounded-full border border-line bg-surface-muted px-3.5 py-1 font-mono text-sm font-semibold text-fg tabular-nums">
               {formatTimer(callSeconds)}
             </span>
           </div>
 
           {/* Center AI Contact Avatar & Waveform */}
-          <div className="flex flex-col items-center text-center space-y-4 z-10 my-auto">
+          <div className="my-auto flex w-full flex-col items-center space-y-4 text-center">
             <div className="relative">
-              <div className={`h-28 w-28 rounded-full p-1 transition-all duration-500 ${
-                isAiSpeaking
-                  ? 'bg-gradient-to-tr from-emerald-500 via-teal-400 to-indigo-500 ring-8 ring-emerald-500/20 scale-110'
-                  : 'bg-slate-800 border-2 border-slate-700'
-              }`}>
-                <div className="h-full w-full rounded-full bg-slate-900 flex items-center justify-center text-white">
-                  <Sparkles className={`h-12 w-12 ${isAiSpeaking ? 'text-emerald-400 animate-pulse' : 'text-slate-500'}`} />
-                </div>
+              <div
+                className={cn(
+                  'flex h-28 w-28 items-center justify-center rounded-full border-2 transition-all duration-500',
+                  isAiSpeaking
+                    ? 'scale-110 border-success bg-success-soft text-success ring-8 ring-success/15'
+                    : 'border-line bg-surface-muted text-muted'
+                )}
+              >
+                <Sparkles className={cn('h-12 w-12', isAiSpeaking && 'animate-pulse')} />
               </div>
 
               {/* Sound Wave Indicator */}
               {isAiSpeaking && (
-                <div className="absolute -bottom-3 inset-x-0 flex justify-center items-center gap-1">
-                  <span className="w-1 bg-emerald-400 rounded-full animate-wave-bar"></span>
-                  <span className="w-1 bg-teal-400 rounded-full animate-wave-bar-delay-1"></span>
-                  <span className="w-1 bg-indigo-400 rounded-full animate-wave-bar-delay-2"></span>
+                <div className="absolute inset-x-0 -bottom-3 flex items-center justify-center gap-1" aria-hidden>
+                  <span className="w-1 animate-wave-bar rounded-full bg-success"></span>
+                  <span className="w-1 animate-wave-bar-delay-1 rounded-full bg-success"></span>
+                  <span className="w-1 animate-wave-bar-delay-2 rounded-full bg-accent"></span>
                 </div>
               )}
             </div>
 
             <div>
-              <h3 className="text-xl font-extrabold text-white">Antigravity AI Tutor</h3>
-              <p className="text-xs text-emerald-400 font-medium mt-0.5">
-                {isAiSpeaking ? 'AI is speaking...' : isListening ? 'Listening to your voice...' : 'Call Active'}
+              <h3 className="text-lg font-semibold text-fg sm:text-xl">My Journey AI Tutor</h3>
+              <p className="mt-0.5 text-xs font-medium text-success" aria-live="polite">
+                {isAiSpeaking ? 'AI sedang berbicara...' : isListening ? 'Mendengarkan suaramu...' : 'Panggilan aktif'}
               </p>
-              <span className="inline-block mt-2 text-[11px] font-semibold text-slate-300 bg-slate-900 px-3.5 py-1 rounded-full border border-slate-800">
+              <span className="mt-2 inline-block rounded-full border border-line bg-surface-muted px-3.5 py-1 text-[11px] font-medium text-fg">
                 Topik: {customTopic ? customTopic : selectedTopic ? selectedTopic.title : 'Bebas Apa Saja'}
               </span>
             </div>
 
             {/* Live Call Transcript Bubble */}
-            <div className="max-w-md mx-auto w-full bg-slate-900/90 border border-slate-800 rounded-2xl p-4 text-xs text-slate-200 shadow-inner">
+            <div className="mx-auto w-full max-w-md rounded-2xl border border-line bg-surface-muted p-4 text-left text-xs text-fg">
               {currentTranscript ? (
-                <p className="italic text-indigo-300 animate-pulse">&ldquo;{currentTranscript}&rdquo;</p>
-              ) : transcriptHistory.length > 0 ? (
-                <p className="line-clamp-2">
-                  <strong className="text-emerald-400 mr-1">
-                    {transcriptHistory[transcriptHistory.length - 1].role === 'ai' ? 'AI:' : 'You:'}
+                <p className="animate-pulse text-accent italic">&ldquo;{currentTranscript}&rdquo;</p>
+              ) : lastLine ? (
+                <p className="line-clamp-3">
+                  <strong className="mr-1 text-success">
+                    {lastLine.role === 'ai' ? 'AI:' : 'Kamu:'}
                   </strong>
-                  &ldquo;{transcriptHistory[transcriptHistory.length - 1].text}&rdquo;
+                  &ldquo;{lastLine.text}&rdquo;
                 </p>
               ) : (
-                <p className="text-slate-500">Connecting audio channels...</p>
+                <p className="text-muted">Menyambungkan saluran audio...</p>
               )}
             </div>
           </div>
 
           {/* Call Action Controls (Mute, Speaker, Hangup) */}
-          <div className="z-10 flex items-center justify-center gap-6 pt-4 w-full border-t border-slate-800/80">
+          <div className="flex w-full items-center justify-center gap-6 border-t border-line pt-4">
             {/* Mute Button */}
             <button
+              type="button"
               onClick={() => {
                 setIsMuted(!isMuted);
                 if (!isMuted) stopMicListener();
                 else startMicListener();
               }}
-              title={isMuted ? "Unmute Mic" : "Mute Mic"}
-              className={`flex h-14 w-14 items-center justify-center rounded-full transition-all shadow-lg ${
+              title={isMuted ? 'Nyalakan mikrofon' : 'Matikan mikrofon'}
+              aria-label={isMuted ? 'Nyalakan mikrofon' : 'Matikan mikrofon'}
+              aria-pressed={isMuted}
+              className={cn(
+                'flex h-14 w-14 items-center justify-center rounded-full border transition-colors',
                 isMuted
-                  ? 'bg-rose-950 border border-rose-800 text-rose-400'
-                  : 'bg-slate-900 border border-slate-700 text-slate-200 hover:bg-slate-800'
-              }`}
+                  ? 'border-danger/40 bg-danger-soft text-danger'
+                  : 'border-line bg-surface text-fg hover:bg-surface-muted'
+              )}
             >
               {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
             </button>
 
             {/* End Call Button */}
             <button
+              type="button"
               onClick={handleEndCall}
-              title="End Call"
-              className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-xl shadow-rose-600/30 hover:scale-110 active:scale-95 transition-all"
+              title="Akhiri panggilan"
+              aria-label="Akhiri panggilan"
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-danger text-white transition-transform hover:scale-105 active:scale-95 dark:text-bg"
             >
               <PhoneOff className="h-7 w-7" />
             </button>
 
             {/* Speaker Toggle */}
             <button
+              type="button"
               onClick={() => setIsSpeakerOn(!isSpeakerOn)}
-              title={isSpeakerOn ? "Speaker On" : "Speaker Muted"}
-              className={`flex h-14 w-14 items-center justify-center rounded-full transition-all shadow-lg ${
+              title={isSpeakerOn ? 'Matikan suara AI' : 'Nyalakan suara AI'}
+              aria-label={isSpeakerOn ? 'Matikan suara AI' : 'Nyalakan suara AI'}
+              aria-pressed={isSpeakerOn}
+              className={cn(
+                'flex h-14 w-14 items-center justify-center rounded-full border transition-colors',
                 isSpeakerOn
-                  ? 'bg-indigo-950 border border-indigo-700 text-indigo-300'
-                  : 'bg-slate-900 border border-slate-700 text-slate-400'
-              }`}
+                  ? 'border-accent bg-accent-soft text-accent'
+                  : 'border-line bg-surface text-muted hover:bg-surface-muted'
+              )}
             >
               {isSpeakerOn ? <Volume2 className="h-6 w-6" /> : <VolumeX className="h-6 w-6" />}
             </button>
           </div>
 
-        </div>
+        </Card>
       )}
 
       {/* CALL STATE 3: CALL ENDED SUMMARY REPORT */}
       {callState === 'ended' && (
-        <div className="glass-panel rounded-2xl border border-slate-800 p-6 sm:p-8 space-y-6 shadow-2xl">
-          
-          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+        <Card className="space-y-6 p-5 sm:p-8">
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
             <div>
-              <span className="text-xs font-bold uppercase text-emerald-400">Call Summary Report</span>
-              <h2 className="text-xl font-bold text-white">Post-Call Fluency & Analysis</h2>
+              <span className="text-xs font-semibold text-success uppercase">Ringkasan panggilan</span>
+              <h2 className="text-lg font-semibold text-fg sm:text-xl">Analisis fluency setelah panggilan</h2>
             </div>
 
-            <button
-              onClick={() => setCallState('idle')}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-500 transition-colors"
-            >
+            <Button size="sm" onClick={() => setCallState('idle')}>
               <RefreshCw className="h-3.5 w-3.5" />
-              <span>New Phone Call</span>
-            </button>
+              Panggilan Baru
+            </Button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-            <div className="rounded-xl bg-slate-950/80 p-4 border border-slate-800">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Call Duration</span>
-              <span className="text-xl font-extrabold text-white">{formatTimer(callSeconds)}</span>
+          <div className="grid grid-cols-1 gap-3 text-center sm:grid-cols-3">
+            <div className="rounded-xl bg-surface-muted p-4">
+              <span className="mb-1 block text-[10px] font-semibold text-muted uppercase">Durasi panggilan</span>
+              <span className="text-xl font-semibold text-fg tabular-nums">{formatTimer(callSeconds)}</span>
             </div>
 
-            <div className="rounded-xl bg-slate-950/80 p-4 border border-slate-800">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Sentences Spoken</span>
-              <span className="text-xl font-extrabold text-indigo-400">{transcriptHistory.filter(t => t.role === 'user').length}</span>
+            <div className="rounded-xl bg-surface-muted p-4">
+              <span className="mb-1 block text-[10px] font-semibold text-muted uppercase">Kalimat diucapkan</span>
+              <span className="text-xl font-semibold text-accent tabular-nums">{transcriptHistory.filter(t => t.role === 'user').length}</span>
             </div>
 
-            <div className="rounded-xl bg-slate-950/80 p-4 border border-slate-800">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Call Fluency Score</span>
-              <span className="text-xl font-extrabold text-emerald-400">{avgCallScore}/100</span>
+            <div className="rounded-xl bg-surface-muted p-4">
+              <span className="mb-1 block text-[10px] font-semibold text-muted uppercase">Skor fluency</span>
+              <span className="text-xl font-semibold text-success tabular-nums">{avgCallScore}/100</span>
             </div>
           </div>
+
+          {savedLabel && <SavedPhraseNotice label={savedLabel} onDismiss={() => setSavedLabel(null)} />}
 
           {/* Transcript & Grammar Corrections */}
           <div className="space-y-3">
-            <h3 className="text-sm font-bold text-slate-300">Call Conversation Log & Feedback:</h3>
-            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+            <div>
+              <h3 className="text-sm font-semibold text-fg">Log percakapan & feedback</h3>
+              <p className="text-xs text-muted">Simpan frasa penting ke daftar review untuk diulang nanti.</p>
+            </div>
+            <div className="max-h-96 space-y-3 overflow-y-auto pr-1">
               {transcriptHistory.map((item, idx) => (
-                <div key={idx} className={`p-3 rounded-xl border text-xs space-y-1 ${
-                  item.role === 'ai' ? 'bg-slate-900 border-slate-800 text-slate-200' : 'bg-indigo-950/40 border-indigo-800/40 text-indigo-200'
-                }`}>
-                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
-                    <span>{item.role === 'ai' ? 'AI Tutor' : 'You (Learner)'}</span>
+                <div
+                  key={idx}
+                  className={cn(
+                    'space-y-1 rounded-xl border p-3 text-xs',
+                    item.role === 'ai' ? 'border-line bg-surface-muted text-fg' : 'border-accent/30 bg-accent-soft text-fg'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2 text-[10px] font-semibold text-muted">
+                    <span>{item.role === 'ai' ? 'AI Tutor' : 'Kamu'}</span>
                     <span>{item.time}</span>
                   </div>
-                  <p>&ldquo;{item.text}&rdquo;</p>
+                  <p className="break-words">&ldquo;{item.text}&rdquo;</p>
+                  {item.role === 'ai' && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setSaveTarget({ phrase: item.text.length <= PHRASE_MAX_CHARS ? item.text : '' })}
+                        className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-muted hover:bg-surface hover:text-fg"
+                      >
+                        <BookmarkPlus className="h-3 w-3" />
+                        Simpan frasa
+                      </button>
+                    </div>
+                  )}
                   {item.correction && (
                     <div className="mt-2">
-                      <CorrectionCard correction={item.correction} />
+                      <CorrectionCard
+                        correction={item.correction}
+                        onSavePhrase={(phrase, note) => setSaveTarget({ phrase, note })}
+                      />
                     </div>
                   )}
                 </div>
@@ -592,8 +618,18 @@ export default function VoiceCallStudioPage() {
             </div>
           </div>
 
-        </div>
+        </Card>
       )}
+
+      <SavePhraseDialog
+        target={saveTarget}
+        reason={PHRASE_REASONS.call}
+        onClose={() => setSaveTarget(null)}
+        onSaved={(label) => {
+          setSaveTarget(null);
+          setSavedLabel(label);
+        }}
+      />
 
     </div>
   );

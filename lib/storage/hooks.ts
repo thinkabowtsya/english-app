@@ -2,13 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import type { ActiveTimer, AppData, LearningSession } from '@/types/learning';
-import {
-  getActiveTimer,
-  getData,
-  getLastFinished,
-  getStorageWarning,
-  subscribe,
-} from './store';
+import { getActiveTimer, getCloudState, getData, getLastFinished, subscribe, type CloudState } from './store';
 
 const noopSubscribe = () => () => {};
 
@@ -21,7 +15,7 @@ export function useHydrated(): boolean {
   );
 }
 
-/** Data progres dari localStorage. null selama render server/hidrasi (hindari mismatch). */
+/** Data belajar (dimuat dari Supabase). null selama render server, hidrasi, atau pemuatan. */
 export function useAppData(): AppData | null {
   return useSyncExternalStore(subscribe, getData, () => null);
 }
@@ -34,8 +28,16 @@ export function useLastFinished(): LearningSession | null {
   return useSyncExternalStore(subscribe, getLastFinished, () => null);
 }
 
-export function useStorageWarning(): string | null {
-  return useSyncExternalStore(subscribe, getStorageWarning, () => null);
+const SERVER_CLOUD_STATE: CloudState = {
+  status: 'idle',
+  userId: null,
+  loadError: null,
+  syncError: null,
+  pendingSessions: 0,
+};
+
+export function useCloudState(): CloudState {
+  return useSyncExternalStore(subscribe, getCloudState, () => SERVER_CLOUD_STATE);
 }
 
 /* --------------------------------- Clock -------------------------------- */
