@@ -337,4 +337,45 @@ export async function deleteAllProgress(supabase: SupabaseClient, userId: string
   for (const table of ['learning_sessions', 'learning_progress', 'review_items'] as const) {
     check(await supabase.from(table).delete().eq('user_id', userId));
   }
+  // Centang Kalender: best-effort, agar reset tetap jalan walau migrasi daily_checks belum dijalankan.
+  const { error } = await supabase.from('daily_checks').delete().eq('user_id', userId);
+  if (error) console.warn('[sync] reset daily_checks:', error.message);
+}
+
+/* --------------------------- Centang kalender --------------------------- */
+
+const CHECK_TASKS = ['timer', 'lesson', 'review', 'vocab', 'speaking'] as const;
+type CheckTask = (typeof CHECK_TASKS)[number];
+
+/** Akses tabel daily_checks (centang manual Kalender) untuk lib/daily-checks.ts. */
+export function dailyChecksRemote(supabase: SupabaseClient) {
+  return {
+    async fetch(sinceDate: string) {
+      const rows = await fetchAllRows<{ local_date: string; task_id: string }>((from, to) =>
+        supabase
+          .from('daily_checks')
+          .select('local_date, task_id')
+          .gte('local_date', sinceDate)
+          .order('local_date', { ascending: true })
+          .range(from, to),
+      );
+      return rows
+        .filter((r): r is { local_date: string; task_id: CheckTask } => (CHECK_TASKS as readonly string[]).includes(r.task_id))
+        .map((r) => ({ date: r.local_date, id: r.task_id }));
+    },
+    /** Idempoten: centang ganda diabaikan, batal centang yang sudah tidak ada tidak error. */
+    async apply(ops: { date: string; id: CheckTask; checked: boolean }[]) {
+      const adds = ops.filter((o) => o.checked).map((o) => ({ local_date: o.date, task_id: o.id }));
+      if (adds.length > 0) {
+        check(
+          await supabase
+            .from('daily_checks')
+            .upsert(adds, { onConflict: 'user_id,local_date,task_id', ignoreDuplicates: true }),
+        );
+      }
+      for (const o of ops.filter((x) => !x.checked)) {
+        check(await supabase.from('daily_checks').delete().eq('local_date', o.date).eq('task_id', o.id));
+      }
+    },
+  };
 }

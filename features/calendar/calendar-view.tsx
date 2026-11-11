@@ -5,9 +5,15 @@ import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { CURRICULUM } from '@/data/curriculum';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { PageHeader, ProgressBar, Skeleton } from '@/components/ui/feedback';
+import { Alert, PageHeader, ProgressBar, Skeleton } from '@/components/ui/feedback';
 import { flattenLessons } from '@/lib/curriculum';
-import { checksFor, getDailyChecks, getServerDailyChecks, subscribeDailyChecks } from '@/lib/daily-checks';
+import {
+  checksFor,
+  getChecksSyncError,
+  getDailyChecks,
+  getServerDailyChecks,
+  subscribeDailyChecks,
+} from '@/lib/daily-checks';
 import { activityLevel, buildDayPlan, dayCompletion, isTaskDone, scheduleLessons, type DayPlan } from '@/lib/daily-plan';
 import { addDaysToKey, formatDuration, fromLocalDateKey, toLocalDateKey } from '@/lib/date';
 import { getTotalsByDate } from '@/lib/progress';
@@ -37,6 +43,7 @@ export function CalendarView() {
   const data = useAppData();
   const now = useNow();
   const checks = useSyncExternalStore(subscribeDailyChecks, getDailyChecks, getServerDailyChecks);
+  const syncError = useSyncExternalStore(subscribeDailyChecks, getChecksSyncError, () => null);
   const [view, setView] = useState<{ year: number; month: number } | null>(null);
   const [selected, setSelected] = useState<LocalDateKey | null>(null);
 
@@ -224,8 +231,14 @@ export function CalendarView() {
             />
           )}
           <DayTaskList plan={activePlan} manual={activeManual} />
+          {syncError && (
+            <Alert tone="warning" className="mt-3">
+              {syncError}
+            </Alert>
+          )}
           <p className="mt-3 text-[11px] text-muted">
-            Centang manual (Review, Kosakata, Bicara) tersimpan di perangkat ini. Materi & target waktu mengikuti progres di akunmu.
+            Centang manual (Review, Kosakata, Bicara) tersimpan ke akunmu dan ikut di semua perangkat (tanpa login: hanya di
+            perangkat ini). Materi & target waktu tercentang otomatis dari progresmu.
           </p>
         </Card>
       </div>

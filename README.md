@@ -57,6 +57,7 @@ File migrasi (jalankan berurutan; semuanya aman dijalankan ulang, tidak menghapu
 - `supabase/migrations/20261022230000_call_sessions.sql` (riwayat & penilaian Telepon AI)
 - `supabase/migrations/20261023090000_practice_sessions.sql` (riwayat Latihan grammar, Susun kalimat, Evaluasi, dan mode ketik/dikte/buat kalimat)
 - `supabase/migrations/20261023120000_mistakes.sql` (Buku kesalahan + jenis latihan `mistakes` di practice_sessions)
+- `supabase/migrations/20261111120000_daily_checks.sql` (centang manual tugas Kalender Belajar)
 
 1. Buka *SQL Editor → New query* di dashboard Supabase.
 2. Tempel seluruh isi tiap file migrasi, klik **Run**. Supabase akan memperingatkan "destructive operations" karena ada
@@ -78,6 +79,7 @@ lewat `user_id = auth.uid()`):
 | `practice_sessions` | Sesi latihan selesai (grammar, susun kalimat, evaluasi materi, ketik jawaban, dikte, buat kalimat): soal AI, jawaban, hasil, skor. Soal kosakata ikut menggeser jadwal ulang kata | select, insert, delete |
 | `mistakes` | Buku kesalahan: kesalahan dari Telepon AI & latihan per pola (lib/mistakes.ts); status terbuka/teratasi (latihan pola ≥ 80%)/diabaikan | select, insert, update, delete |
 | `call_sessions` | Panggilan Telepon AI yang selesai: transkrip, koreksi per kalimat, dan penilaian AI (kelancaran, grammar, kosakata, interaksi; huruf kapital & tanda baca tidak dinilai) | select, insert, delete |
+| `daily_checks` | Centang manual tugas Kalender Belajar (Review, Kosakata, Bicara) per tanggal; Materi & target waktu dicentang otomatis dari tabel lain | select, insert, delete |
 | `recall_sessions` | Sesi Vocabulary Recall yang selesai: soal AI (dari Oxford & Collocation), jawaban, dan skor — tampil di riwayat & Dashboard. Hasil tiap soal menggeser jadwal ulang di `oxford_words` / `collocation_progress` (kolom `review_step`, `due_at`; lihat `lib/srs.ts`) | select, insert, delete |
 
 ## 5. Membuat akun pribadi pertama

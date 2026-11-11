@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { minutesToMs } from '@/lib/date';
+import { addDaysToKey, minutesToMs, toLocalDateKey } from '@/lib/date';
+import { loadDailyChecks, resetDailyChecks } from '@/lib/daily-checks';
 import { createId, createUuid, isUuid } from '@/lib/id';
 import { getBrowserSupabase } from '@/lib/supabase/client';
 import {
@@ -17,6 +18,7 @@ import { addToOutbox, clearOutbox, readOutbox, removeFromOutbox } from './outbox
 import { LEGACY_DATA_KEY, loadPrefs, savePrefs, type LocalPrefs } from './prefs';
 import {
   buildAppData,
+  dailyChecksRemote,
   deleteAllProgress,
   deleteReviewRow,
   fetchCloudData,
@@ -101,6 +103,8 @@ export async function loadCloudData(userId: string) {
     );
     setCloudState({ status: 'ready', pendingSessions: pending.length, syncError: null });
     if (pending.length) void flushOutbox();
+    // Centang manual Kalender (±13 bulan terakhir, sesuai jangkauan heatmap).
+    void loadDailyChecks(userId, dailyChecksRemote(getBrowserSupabase()), addDaysToKey(toLocalDateKey(Date.now()), -400));
   } catch (error) {
     console.error('[sync] load:', errorMessage(error));
     setCloudState({
@@ -146,6 +150,7 @@ export function flushOutbox(): Promise<void> {
 
 /** Membersihkan state di memori saat logout (data cloud tetap aman di Supabase). */
 export function clearClientState() {
+  resetDailyChecks();
   setActiveTimer(null);
   setLastFinished(null);
   setData(null);
@@ -512,6 +517,7 @@ export async function resetProgress(current: AppData): Promise<{ ok: true } | { 
     buildAppData({ sessions: [], pendingSessions: [], progress: [], reviews: [], settings: current.settings, now: Date.now() }),
   );
   setCloudState({ pendingSessions: 0, syncError: null });
+  void loadDailyChecks(userId, dailyChecksRemote(getBrowserSupabase()), addDaysToKey(toLocalDateKey(Date.now()), -400));
   return { ok: true };
 }
 
