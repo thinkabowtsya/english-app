@@ -1,14 +1,10 @@
-import type { CurriculumModule, Lesson } from '@/types/curriculum';
+import type { CurriculumModule } from '@/types/curriculum';
 
 /**
  * Katalog Modul 2 (ringan: tanpa isi materi). Isi lengkap ada di content/module-2.ts (server-only).
- * Materi ditambahkan satu unit per hari sesuai urutan kurikulum; yang belum dibuat berstatus placeholder.
+ * Semua materi (2.1–2.10) sudah berisi; ditambahkan berurutan sesuai kurikulum.
  */
 const MODULE_ID = 'level-1-m2';
-
-function planned(no: number, title: string, summary: string): Lesson {
-  return { id: `${MODULE_ID}-l${no}`, moduleId: MODULE_ID, contentStatus: 'placeholder', estimatedMinutes: 25, title, summary };
-}
 
 export const module2: CurriculumModule = {
   id: MODULE_ID,
@@ -32,10 +28,20 @@ export const module2: CurriculumModule = {
     { id: `${MODULE_ID}-l5`, moduleId: MODULE_ID, contentStatus: 'ready', estimatedMinutes: 25,
       title: 'Adjectives',
       summary: 'Kata sifat: posisi sebelum noun dan setelah be.' },
-    planned(6, 'Adverbs', 'Kata keterangan: cara, waktu, frekuensi, dan posisinya.'),
-    planned(7, 'Prepositions', 'Preposisi tempat, waktu, dan arah dalam konteks yang lebih luas.'),
-    planned(8, 'Conjunctions', 'Kata sambung untuk menambah, mengontraskan, memberi alasan, dan akibat.'),
-    planned(9, 'Articles dan Determiners', 'A/an/the, this/that, some/any, dan kata penentu lainnya.'),
-    planned(10, 'Mengidentifikasi Fungsi Kata', 'Membaca kalimat nyata dan mengenali fungsi setiap kata.'),
+    { id: `${MODULE_ID}-l6`, moduleId: MODULE_ID, contentStatus: 'ready', estimatedMinutes: 25,
+      title: 'Adverbs',
+      summary: 'Kata keterangan: cara (-ly, well), frekuensi, waktu & tempat, serta posisinya.' },
+    { id: `${MODULE_ID}-l7`, moduleId: MODULE_ID, contentStatus: 'ready', estimatedMinutes: 25,
+      title: 'Prepositions',
+      summary: 'Preposisi waktu (until, by, for, during), tempat & arah dalam sistem, serta cara dan alat.' },
+    { id: `${MODULE_ID}-l8`, moduleId: MODULE_ID, contentStatus: 'ready', estimatedMinutes: 25,
+      title: 'Conjunctions',
+      summary: 'Kata sambung untuk menambah, mengontraskan, memberi alasan, akibat, waktu, dan syarat.' },
+    { id: `${MODULE_ID}-l9`, moduleId: MODULE_ID, contentStatus: 'ready', estimatedMinutes: 25,
+      title: 'Articles dan Determiners',
+      summary: 'A/an/the atau tanpa article, this/that, some/any, much/many, every, dan possessive.' },
+    { id: `${MODULE_ID}-l10`, moduleId: MODULE_ID, contentStatus: 'ready', estimatedMinutes: 25,
+      title: 'Mengidentifikasi Fungsi Kata',
+      summary: 'Membaca kalimat nyata dan mengenali fungsi setiap kata dari posisi dan akhirannya.' },
   ],
 };

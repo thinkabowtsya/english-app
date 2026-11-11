@@ -25,13 +25,17 @@ describe('isi materi Modul 1', () => {
     }
   });
 
-  it('materi placeholder tidak punya isi', () => {
-    expect(getLessonContent('level-1-m2-l6')).toBeNull();
+  it('materi yang tidak ada tidak punya isi', () => {
+    expect(getLessonContent('level-1-m3-l1')).toBeNull();
   });
 });
 
 describe('isi materi Modul 2', () => {
   const lessons = flattenLessons(CURRICULUM).filter((r) => r.module.id === 'level-1-m2');
+
+  it('semua 10 materi Modul 2 sudah siap', () => {
+    expect(lessons.every((r) => r.lesson.contentStatus === 'ready')).toBe(true);
+  });
 
   it('urutan dan status materi sesuai kurikulum', () => {
     expect(lessons.map((r) => r.lesson.id)).toEqual(Array.from({ length: 10 }, (_, i) => `level-1-m2-l${i + 1}`));
@@ -92,6 +96,50 @@ describe('isi materi Modul 2', () => {
   it('materi 2.5 Adjectives siap dengan bank soal posisi, -ed/-ing, dan adjective + preposition', () => {
     const acts = getLessonContent('level-1-m2-l5')!.activities!;
     for (const id of ['m2-l5-position', 'm2-l5-edging', 'm2-l5-prep', 'm2-l5-prod']) {
+      const a = acts.find((x) => x.id === id);
+      expect(a, id).toBeDefined();
+      expect(a!.items!.length).toBeGreaterThan(a!.pickCount!);
+    }
+  });
+  it('materi 2.6 Adverbs siap dengan bank soal bentuk adverb, frekuensi, dan penguat', () => {
+    const acts = getLessonContent('level-1-m2-l6')!.activities!;
+    for (const id of ['m2-l6-form', 'm2-l6-freq', 'm2-l6-place', 'm2-l6-prod']) {
+      const a = acts.find((x) => x.id === id);
+      expect(a, id).toBeDefined();
+      expect(a!.items!.length).toBeGreaterThan(a!.pickCount!);
+    }
+  });
+
+  it('materi 2.7 Prepositions siap dengan bank soal waktu, tempat & arah, dan cara/alat', () => {
+    const acts = getLessonContent('level-1-m2-l7')!.activities!;
+    for (const id of ['m2-l7-time', 'm2-l7-place', 'm2-l7-other', 'm2-l7-prod']) {
+      const a = acts.find((x) => x.id === id);
+      expect(a, id).toBeDefined();
+      expect(a!.items!.length).toBeGreaterThan(a!.pickCount!);
+    }
+  });
+
+  it('materi 2.8 Conjunctions siap dengan bank soal kata sambung, because/because of, dan klausa waktu/syarat', () => {
+    const acts = getLessonContent('level-1-m2-l8')!.activities!;
+    for (const id of ['m2-l8-choose', 'm2-l8-because', 'm2-l8-clause', 'm2-l8-prod']) {
+      const a = acts.find((x) => x.id === id);
+      expect(a, id).toBeDefined();
+      expect(a!.items!.length).toBeGreaterThan(a!.pickCount!);
+    }
+  });
+
+  it('materi 2.9 Articles & Determiners siap dengan bank soal article, this/these & possessive, dan jumlah', () => {
+    const acts = getLessonContent('level-1-m2-l9')!.activities!;
+    for (const id of ['m2-l9-article', 'm2-l9-demo', 'm2-l9-quantity', 'm2-l9-prod']) {
+      const a = acts.find((x) => x.id === id);
+      expect(a, id).toBeDefined();
+      expect(a!.items!.length).toBeGreaterThan(a!.pickCount!);
+    }
+  });
+
+  it('materi 2.10 Fungsi Kata siap dengan bank soal identifikasi, kata sama beda fungsi, dan bentuk kata', () => {
+    const acts = getLessonContent('level-1-m2-l10')!.activities!;
+    for (const id of ['m2-l10-identify', 'm2-l10-same', 'm2-l10-form', 'm2-l10-prod']) {
       const a = acts.find((x) => x.id === id);
       expect(a, id).toBeDefined();
       expect(a!.items!.length).toBeGreaterThan(a!.pickCount!);

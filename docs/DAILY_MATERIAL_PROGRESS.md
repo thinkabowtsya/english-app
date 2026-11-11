@@ -4,15 +4,15 @@ Catatan kerja rutinitas harian penambahan materi (bukan fitur aplikasi). Satu ek
 Rekap Excel: `D:\myapps\english-materi-harian.xlsx` (dibangun dari `D:\myapps\_routine\progress.json`
 lewat `python -I D:\myapps\_routine\build_excel.py`).
 
-**Terakhir diperbarui:** 2026-10-22
-**Unit berikutnya:** `level-1-m2-l6` — Modul 2 · 2.6 Adverbs
+**Terakhir diperbarui:** 2026-11-11
+**Unit berikutnya:** Modul 3 · 3.1 Memperluas kalimat dengan info tambahan (buat katalog Modul 3 dulu)
 
 ## Kurikulum tetap Modul 1–10
 
 | Modul | Judul | Status |
 | --- | --- | --- |
 | 1 | Basic Sentence Foundations (di app: "Grammar Dasar Sederhana") | Lengkap (8 unit) — jangan diubah |
-| 2 | Parts of Speech | 5/10 unit |
+| 2 | Parts of Speech | Lengkap (10 unit) |
 | 3 | Sentence Building & Expansion | Belum mulai |
 | 4 | Simple Past & Past Experiences | Belum mulai |
 | 5 | Future Forms & Plans | Belum mulai |
@@ -31,11 +31,11 @@ lewat `python -I D:\myapps\_routine\build_excel.py`).
 | level-1-m2-l3 | Pronouns | ✅ ready (2026-10-21) |
 | level-1-m2-l4 | Verbs | ✅ ready (2026-10-22) |
 | level-1-m2-l5 | Adjectives | ✅ ready (2026-10-22) |
-| level-1-m2-l6 | Adverbs | placeholder |
-| level-1-m2-l7 | Prepositions | placeholder |
-| level-1-m2-l8 | Conjunctions | placeholder |
-| level-1-m2-l9 | Articles dan Determiners | placeholder |
-| level-1-m2-l10 | Mengidentifikasi Fungsi Kata | placeholder |
+| level-1-m2-l6 | Adverbs | ✅ ready (2026-11-11) |
+| level-1-m2-l7 | Prepositions | ✅ ready (2026-11-11) |
+| level-1-m2-l8 | Conjunctions | ✅ ready (2026-11-11) |
+| level-1-m2-l9 | Articles dan Determiners | ✅ ready (2026-11-11) |
+| level-1-m2-l10 | Mengidentifikasi Fungsi Kata | ✅ ready (2026-11-11) |
 
 ## Cara menambah unit (untuk eksekusi berikutnya)
 
@@ -108,3 +108,31 @@ lewat `python -I D:\myapps\_routine\build_excel.py`).
 - Tes: placeholder check dipindah ke l6; tambah tes bank soal 2.5.
 - Validasi: typecheck OK, lint OK, test 98/98 OK, build OK.
 - Kendala: render halaman tidak dicek via HTTP (login Supabase); dev server port 3000 tidak disentuh.
+
+### 2026-11-11 — level-1-m2-l6 s.d. l10 (permintaan langsung pengguna, berurutan dalam satu sesi)
+- **2.6 Adverbs:** adjective vs adverb (careful/carefully, good/well, fast/hard tanpa -ly, setelah be/look/seem tetap
+  adjective), adverb frekuensi (sebelum action verb, setelah be; never tanpa don't), tempat lalu waktu di akhir kalimat,
+  almost/only/also/still/really. Latihan: Adjective atau adverb? (12, acak 5), Posisi adverb frekuensi (12, acak 5),
+  Penguat & urutan (12, acak 5), Susun (7, acak 3), Produksi (6, acak 2), Kembangkan (2), Recall (8), Evaluasi (6).
+- **2.7 Prepositions:** memperdalam Modul 1.7 — from…to, until vs by (deadline), for vs during, tanpa preposition sebelum
+  next/last/every/this, in/on/at untuk file/folder/server/halaman, to/from/into, by/with/without/about, pronoun object
+  setelah preposition. Latihan: Waktu, Tempat & arah, Cara/alat/topik & pronoun (masing-masing 12, acak 5), Susun,
+  Produksi, Kembangkan, Recall, Evaluasi.
+- **2.8 Conjunctions:** memperluas Modul 1.8 — or (termasuk "don't use A or B"), koma sebelum but/so/or, because vs
+  because of, although (tanpa but), when/if/before/after/until + Simple Present untuk kebiasaan/aturan/instruksi, aturan
+  koma. Latihan: Pilih kata sambung (12, acak 5), because/because of (12, acak 5), Gabungkan klausa (10, acak 4), Susun,
+  Produksi, Kembangkan, Recall, Evaluasi.
+- **2.9 Articles & Determiners:** memperdalam Modul 1.6 — tanpa article untuk jamak/uncountable umum, the untuk yang
+  spesifik/satu-satunya, this/that/these/those, possessive tanpa article (its vs it's), some/any/no, many/much/a lot of,
+  a few/a little, every/each + tunggal. Latihan: Article (12, acak 5), Demonstrative & possessive (12, acak 5), Jumlah
+  (12, acak 5), Susun, Produksi, Kembangkan, Recall, Evaluasi.
+- **2.10 Mengidentifikasi Fungsi Kata:** penutup Modul 2 — langkah membaca kalimat (verb → subject → object → penjelas),
+  petunjuk posisi, petunjuk akhiran (-tion/-ment/-ness/-er/-ity, -ful/-less/-able/-al/-ive/-ous, -ly, -ize/-ate/-ify),
+  pengecualian (friendly, fast/hard/well), kata IT yang bisa verb/noun. Latihan: Identifikasi (14, acak 6), Kata sama beda
+  fungsi (12, acak 5), Bentuk kata (12, acak 5), Susun, Produksi, Kembangkan, Recall, Evaluasi akhir Modul 2.
+- Grammar dijaga Simple Present/be/imperative + need to (Modul 2.4); tanpa will/can/must/should, Past, atau Continuous.
+  "When/If + Simple Present" dipakai hanya untuk kebiasaan, aturan, dan instruksi.
+- Tes: placeholder check diganti (level-1-m3-l1 tidak punya isi), tambah tes "semua 10 materi Modul 2 siap" dan bank
+  soal 2.6–2.10.
+- Validasi: typecheck OK, lint OK, test 155/155 OK, build OK.
+- Kendala: render halaman tidak dicek via HTTP (halaman materi mewajibkan login).
