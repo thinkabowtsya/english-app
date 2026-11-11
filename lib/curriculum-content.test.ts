@@ -26,7 +26,7 @@ describe('isi materi Modul 1', () => {
   });
 
   it('materi placeholder tidak punya isi', () => {
-    expect(getLessonContent('level-1-m2-l2')).toBeNull();
+    expect(getLessonContent('level-1-m2-l6')).toBeNull();
   });
 });
 
@@ -52,6 +52,49 @@ describe('isi materi Modul 2', () => {
         expect(a.items?.length, `${ref.lesson.id}/${a.id}`).toBeGreaterThan(0);
         if (a.pickCount) expect(a.items!.length).toBeGreaterThan(a.pickCount);
       }
+    }
+  });
+
+  it('ID aktivitas berprefiks sesuai nomor materi', () => {
+    for (const ref of lessons.filter((r) => r.lesson.contentStatus === 'ready')) {
+      const prefix = `m2-l${ref.lesson.id.split('-l').pop()}-`;
+      for (const a of getLessonContent(ref.lesson.id)!.activities ?? []) expect(a.id.startsWith(prefix), a.id).toBe(true);
+    }
+  });
+
+  it('materi 2.2 Nouns siap dengan bank soal countable/uncountable dan plural', () => {
+    const acts = getLessonContent('level-1-m2-l2')!.activities!;
+    for (const id of ['m2-l2-countable', 'm2-l2-plural', 'm2-l2-prod']) {
+      const a = acts.find((x) => x.id === id);
+      expect(a, id).toBeDefined();
+      expect(a!.items!.length).toBeGreaterThan(a!.pickCount!);
+    }
+  });
+
+  it('materi 2.3 Pronouns siap dengan bank soal jenis pronoun, pilihan, dan ganti noun', () => {
+    const acts = getLessonContent('level-1-m2-l3')!.activities!;
+    for (const id of ['m2-l3-identify', 'm2-l3-choose', 'm2-l3-replace', 'm2-l3-prod']) {
+      const a = acts.find((x) => x.id === id);
+      expect(a, id).toBeDefined();
+      expect(a!.items!.length).toBeGreaterThan(a!.pickCount!);
+    }
+  });
+
+  it('materi 2.4 Verbs siap dengan bank soal action/be, bentuk verb, dan verb + preposition', () => {
+    const acts = getLessonContent('level-1-m2-l4')!.activities!;
+    for (const id of ['m2-l4-identify', 'm2-l4-choose', 'm2-l4-prep', 'm2-l4-prod']) {
+      const a = acts.find((x) => x.id === id);
+      expect(a, id).toBeDefined();
+      expect(a!.items!.length).toBeGreaterThan(a!.pickCount!);
+    }
+  });
+
+  it('materi 2.5 Adjectives siap dengan bank soal posisi, -ed/-ing, dan adjective + preposition', () => {
+    const acts = getLessonContent('level-1-m2-l5')!.activities!;
+    for (const id of ['m2-l5-position', 'm2-l5-edging', 'm2-l5-prep', 'm2-l5-prod']) {
+      const a = acts.find((x) => x.id === id);
+      expect(a, id).toBeDefined();
+      expect(a!.items!.length).toBeGreaterThan(a!.pickCount!);
     }
   });
 });

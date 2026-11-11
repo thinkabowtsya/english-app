@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { GraduationCap, LogIn, Settings } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { GraduationCap, LogIn, Menu, Settings } from 'lucide-react';
 import { ActiveTimerPill } from '@/features/timer/active-timer-pill';
 import { SignOutButton } from './sign-out-button';
 import { cn } from '@/lib/utils';
@@ -98,33 +99,95 @@ export function MobileTopBar() {
   );
 }
 
+const PRIMARY_ITEMS = NAV_ITEMS.filter((item) => item.primary);
+const MORE_ITEMS = NAV_ITEMS.filter((item) => !item.primary);
+
+/**
+ * Menu bawah ponsel: hanya menu utama + tombol "Lainnya" yang membuka panel berisi menu sisanya,
+ * agar tiap tombol tetap lega di layar kecil.
+ */
 export function MobileBottomNav() {
   const pathname = usePathname();
-  const items = NAV_ITEMS.filter((item) => item.href !== '/pengaturan');
+  const [openPath, setOpenPath] = useState<string | null>(null);
+  // Panel otomatis tertutup saat pindah halaman (terikat ke path tempat panel dibuka).
+  const open = openPath === pathname;
+  const close = () => setOpenPath(null);
+  const moreActive = MORE_ITEMS.some((item) => isNavActive(item, pathname));
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenPath(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  const tabClass = (active: boolean) =>
+    cn('flex min-w-0 flex-col items-center gap-1 truncate py-2 text-[11px]', active ? 'font-medium text-accent' : 'text-muted');
+
   return (
-    <nav
-      aria-label="Navigasi utama"
-      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
-      className="fixed inset-x-0 bottom-0 z-30 grid border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
-    >
-      {items.map((item) => {
-        const active = isNavActive(item, pathname);
-        const Icon = item.icon;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? 'page' : undefined}
-            className={cn(
-              'flex min-w-0 flex-col items-center gap-1 truncate py-2 text-[10px]',
-              active ? 'font-medium text-accent' : 'text-muted',
-            )}
+    <>
+      {open && (
+        <div className="fixed inset-0 z-30 lg:hidden">
+          <button type="button" aria-label="Tutup menu" onClick={close} className="absolute inset-0 bg-black/40" />
+          <div
+            id="mobile-more-menu"
+            role="dialog"
+            aria-label="Menu lainnya"
+            className="absolute inset-x-0 bottom-[calc(3.75rem+env(safe-area-inset-bottom))] mx-3 rounded-2xl border border-line bg-surface p-2 shadow-xl"
           >
-            <Icon className="h-5 w-5" aria-hidden />
-            {item.shortLabel}
-          </Link>
-        );
-      })}
-    </nav>
+            <ul className="grid grid-cols-3 gap-1">
+              {MORE_ITEMS.map((item) => {
+                const active = isNavActive(item, pathname);
+                const Icon = item.icon;
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={close}
+                      aria-current={active ? 'page' : undefined}
+                      className={cn(
+                        'flex flex-col items-center gap-1.5 rounded-xl px-2 py-3 text-center text-xs',
+                        active ? 'bg-accent-soft font-medium text-accent' : 'text-fg hover:bg-surface-muted',
+                      )}
+                    >
+                      <Icon className="h-5 w-5" aria-hidden />
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </div>
+      )}
+      <nav
+        aria-label="Navigasi utama"
+        style={{ gridTemplateColumns: `repeat(${PRIMARY_ITEMS.length + 1}, minmax(0, 1fr))` }}
+        className="fixed inset-x-0 bottom-0 z-40 grid border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+      >
+        {PRIMARY_ITEMS.map((item) => {
+          const active = isNavActive(item, pathname);
+          const Icon = item.icon;
+          return (
+            <Link key={item.href} href={item.href} onClick={close} aria-current={active ? 'page' : undefined} className={tabClass(active)}>
+              <Icon className="h-5 w-5" aria-hidden />
+              {item.shortLabel}
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setOpenPath(open ? null : pathname)}
+          aria-expanded={open}
+          aria-controls="mobile-more-menu"
+          className={tabClass(open || moreActive)}
+        >
+          <Menu className="h-5 w-5" aria-hidden />
+          Lainnya
+        </button>
+      </nav>
+    </>
   );
 }

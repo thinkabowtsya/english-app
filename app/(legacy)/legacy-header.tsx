@@ -5,10 +5,10 @@ import { usePathname } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 
 const PARENTS: Record<string, { href: string; label: string }> = {
-  '/call': { href: '/percakapan', label: 'Percakapan AI' },
   '/practice': { href: '/percakapan', label: 'Percakapan AI' },
   '/vocabulary': { href: '/latihan', label: 'Latihan' },
   '/pronunciation': { href: '/latihan', label: 'Latihan' },
+  '/collocations': { href: '/latihan', label: 'Latihan' },
 };
 
 export function LegacyHeader() {

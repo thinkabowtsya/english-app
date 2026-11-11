@@ -14,6 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge, PageHeader } from '@/components/ui/feedback';
 import { SavePhraseDialog, SavedPhraseNotice, type PhraseTarget } from '@/components/review/save-phrase-dialog';
+import { CallAssessmentView, CallHistory } from '@/features/call/call-history';
+import type { CallAssessment } from '@/lib/call-assessment';
 
 interface CallLine {
   id: string;
@@ -84,7 +86,12 @@ export default function VoiceCallStudioPage() {
   const [isListening, setIsListening] = useState(false);
   const [transcriptHistory, setTranscriptHistory] = useState<CallLine[]>([]);
   const [currentTranscript, setCurrentTranscript] = useState('');
-  const [callSummaryScores, setCallSummaryScores] = useState<number[]>([]);
+  // Penilaian AI setelah panggilan selesai (disimpan ke riwayat call_sessions).
+  const [review, setReview] = useState<
+    | { status: 'idle' | 'loading' | 'empty' | 'error' }
+    | { status: 'done'; assessment: CallAssessment | null; storage: string }
+  >({ status: 'idle' });
+  const [historyVersion, setHistoryVersion] = useState(0);
   const [saveTarget, setSaveTarget] = useState<PhraseTarget | null>(null);
   const [savedLabel, setSavedLabel] = useState<string | null>(null);
   const [isAiThinking, setIsAiThinking] = useState(false);
@@ -224,12 +231,11 @@ export default function VoiceCallStudioPage() {
     fetch('/api/correction', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: userText, userLevel: 'Intermediate' })
+      body: JSON.stringify({ text: userText, userLevel: 'Intermediate', mode: 'speech' })
     })
       .then(r => (r.ok ? r.json() : null))
       .then((corrRes: Correction | null) => {
         if (!corrRes || typeof corrRes.score !== 'number') return;
-        setCallSummaryScores(prev => [...prev, corrRes.score]);
         updateHistory(prev => prev.map(item => (item.id === lineId ? { ...item, correction: corrRes } : item)));
       })
       .catch(() => {});
@@ -268,7 +274,7 @@ export default function VoiceCallStudioPage() {
             role: m.role === 'ai' ? 'assistant' : 'user',
             content: m.text
           })),
-          scenarioPrompt: `You are on a direct live phone call with the user. ${activeTopicContext()}. Feel completely open to discuss ANY topic the user brings up. Keep replies concise (1-3 short sentences) so it feels like a real fast-paced phone call. The user may interrupt you; that is normal.`,
+          scenarioPrompt: `You are on a direct live phone call with the user. ${activeTopicContext()}. Feel completely open to discuss ANY topic the user brings up. Keep replies concise (1-3 short sentences) so it feels like a real fast-paced phone call. The user may interrupt you; that is normal. The user's words come from speech recognition, so capitalization and punctuation are meaningless: never comment on or correct them.`,
           userLevel: 'Intermediate'
         })
       });
@@ -340,7 +346,7 @@ export default function VoiceCallStudioPage() {
     setCallSeconds(0);
     historyRef.current = [];
     setTranscriptHistory([]);
-    setCallSummaryScores([]);
+    setReview({ status: 'idle' });
     setSavedLabel(null);
 
     setTimeout(() => {
@@ -363,6 +369,34 @@ export default function VoiceCallStudioPage() {
     }, 1500);
   };
 
+  const topicLabel = () =>
+    customTopic.trim() || selectedTopic?.title || 'Bebas apa saja';
+
+  /** Nilai panggilan dengan AI lalu simpan ke riwayat (minimal satu ucapan pengguna). */
+  const saveCall = async (durationSeconds: number) => {
+    const lines = historyRef.current
+      .filter(l => l.text.trim())
+      .map(({ role, text, time, correction }) => ({ role, text, time, ...(correction ? { correction } : {}) }));
+    if (!lines.some(l => l.role === 'user')) {
+      setReview({ status: 'empty' });
+      return;
+    }
+    setReview({ status: 'loading' });
+    try {
+      const res = await fetch('/api/call/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: topicLabel().slice(0, 200), durationSeconds, lines })
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body) throw new Error(`HTTP ${res.status}`);
+      setReview({ status: 'done', assessment: body.assessment ?? null, storage: body.storage });
+      if (body.storage === 'saved') setHistoryVersion(v => v + 1);
+    } catch {
+      setReview({ status: 'error' });
+    }
+  };
+
   // End Phone Call
   const handleEndCall = () => {
     callActiveRef.current = false;
@@ -370,6 +404,7 @@ export default function VoiceCallStudioPage() {
     stopSpeaking();
     stopMicListener();
     setCallState('ended');
+    void saveCall(callSeconds);
   };
 
   const toggleMute = () => {
@@ -398,9 +433,6 @@ export default function VoiceCallStudioPage() {
     setCustomTopic('');
   };
 
-  const avgCallScore = callSummaryScores.length > 0
-    ? Math.round(callSummaryScores.reduce((a, b) => a + b, 0) / callSummaryScores.length)
-    : 88;
 
   if (!mounted) return null;
 
@@ -707,9 +739,44 @@ export default function VoiceCallStudioPage() {
             </div>
 
             <div className="rounded-xl bg-surface-muted p-4">
-              <span className="mb-1 block text-[10px] font-semibold text-muted uppercase">Skor fluency</span>
-              <span className="text-xl font-semibold text-success tabular-nums">{avgCallScore}/100</span>
+              <span className="mb-1 block text-[10px] font-semibold text-muted uppercase">Skor panggilan</span>
+              <span className="text-xl font-semibold text-success tabular-nums">
+                {review.status === 'done' && review.assessment ? `${review.assessment.overall}/100` : review.status === 'loading' ? '…' : '–'}
+              </span>
             </div>
+          </div>
+
+          {/* Penilaian AI */}
+          <div className="rounded-xl border border-line p-4">
+            <h3 className="mb-3 text-sm font-semibold text-fg">Penilaian panggilan</h3>
+            {review.status === 'loading' && (
+              <p className="flex items-center gap-2 text-xs text-muted" role="status">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                AI sedang menilai panggilanmu...
+              </p>
+            )}
+            {review.status === 'empty' && (
+              <p className="text-xs text-muted">Belum ada ucapanmu di panggilan ini, jadi tidak ada yang dinilai.</p>
+            )}
+            {review.status === 'error' && (
+              <p className="text-xs text-danger">Penilaian gagal dibuat. Transkrip tetap bisa dilihat di bawah.</p>
+            )}
+            {review.status === 'done' && (
+              <div className="space-y-3">
+                {review.assessment ? (
+                  <CallAssessmentView assessment={review.assessment} />
+                ) : (
+                  <p className="text-xs text-muted">Penilaian AI tidak tersedia saat ini.</p>
+                )}
+                <p className="text-[11px] text-muted">
+                  {review.storage === 'saved'
+                    ? 'Tersimpan di riwayat panggilan.'
+                    : review.storage === 'guest'
+                      ? 'Login untuk menyimpan riwayat panggilan.'
+                      : 'Riwayat tidak dapat disimpan. Pastikan migrasi call_sessions sudah dijalankan.'}
+                </p>
+              </div>
+            )}
           </div>
 
           {savedLabel && <SavedPhraseNotice label={savedLabel} onDismiss={() => setSavedLabel(null)} />}
@@ -761,6 +828,9 @@ export default function VoiceCallStudioPage() {
 
         </Card>
       )}
+
+      {/* Riwayat panggilan + penilaian (di layar awal dan setelah panggilan selesai) */}
+      {(callState === 'idle' || callState === 'ended') && <CallHistory version={historyVersion} />}
 
       <SavePhraseDialog
         target={saveTarget}

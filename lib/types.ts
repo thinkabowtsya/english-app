@@ -6,6 +6,8 @@ export interface GrammarMistake {
   correction: string;
   explanation: string;
   explanationId?: string;
+  /** Pola kesalahan (lib/mistakes.ts) — untuk Buku kesalahan. */
+  pattern?: string;
 }
 
 export interface Correction {
@@ -57,6 +59,18 @@ export interface VocabCard {
   category: 'Daily' | 'Business' | 'Travel' | 'Academic' | 'Idioms & Slang';
   collocations: string[];
   audioText?: string;
+  /** MP3 pengucapan asli dari Free Dictionary API; tanpa ini kartu memakai TTS browser. */
+  audioUrl?: string;
+  image?: VocabImage;
+}
+
+export interface VocabImage {
+  url: string;
+  alt: string;
+  /** Nama fotografer, ditampilkan sebagai kredit sesuai pedoman Pexels. */
+  credit: string;
+  creditUrl: string;
+  source: 'pexels';
 }
 
 export interface PronunciationChallenge {

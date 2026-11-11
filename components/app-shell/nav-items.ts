@@ -1,10 +1,14 @@
 import {
+  BookMarked,
   BookOpen,
   ChartLine,
   Dumbbell,
   GraduationCap,
   LayoutDashboard,
+  ListChecks,
   MessagesSquare,
+  NotebookPen,
+  PhoneCall,
   Settings,
   type LucideIcon,
 } from 'lucide-react';
@@ -16,25 +20,32 @@ export interface NavItem {
   icon: LucideIcon;
   /** Rute tambahan yang ikut menandai menu ini aktif (mis. halaman latihan lama). */
   also?: string[];
+  /** Tampil langsung di menu bawah ponsel; menu lain masuk ke "Lainnya". */
+  primary?: boolean;
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { href: '/', label: 'Dashboard', shortLabel: 'Dashboard', icon: LayoutDashboard },
-  { href: '/materi', label: 'Materi', shortLabel: 'Materi', icon: BookOpen },
+  { href: '/', label: 'Dashboard', shortLabel: 'Dashboard', icon: LayoutDashboard, primary: true },
+  { href: '/materi', label: 'Materi', shortLabel: 'Materi', icon: BookOpen, primary: true },
   {
     href: '/latihan',
     label: 'Latihan',
     shortLabel: 'Latihan',
     icon: Dumbbell,
-    also: ['/vocabulary', '/pronunciation'],
+    also: ['/vocabulary', '/pronunciation', '/collocations'],
+    primary: true,
   },
+  { href: '/kosakata', label: 'Kosakata saya', shortLabel: 'Kosakata', icon: BookMarked, primary: true },
+  { href: '/oxford', label: 'Oxford 3000', shortLabel: 'Oxford', icon: ListChecks },
+  { href: '/kesalahan', label: 'Buku kesalahan', shortLabel: 'Kesalahan', icon: NotebookPen },
   {
     href: '/percakapan',
     label: 'Percakapan AI',
     shortLabel: 'AI Coach',
     icon: MessagesSquare,
-    also: ['/call', '/practice'],
+    also: ['/practice'],
   },
+  { href: '/call', label: 'Telepon AI', shortLabel: 'Telepon', icon: PhoneCall },
   { href: '/tutor', label: 'Tanya Tutor', shortLabel: 'Tutor', icon: GraduationCap },
   { href: '/progres', label: 'Progres Saya', shortLabel: 'Progres', icon: ChartLine },
   { href: '/pengaturan', label: 'Pengaturan', shortLabel: 'Pengaturan', icon: Settings },

@@ -38,6 +38,7 @@ npm run dev                  # http://localhost:3000
 | `GROQ_BASE_URL` | Opsional, default `https://api.groq.com/openai/v1`. |
 | `GROQ_MODEL` | Opsional, default `openai/gpt-oss-120b` (`llama-3.3-70b-versatile` sudah dihentikan Groq). |
 | `AI_PROVIDER` | Opsional. `mock` memaksa mock walau API key ada. |
+| `PEXELS_API_KEY` | Opsional. Foto di kartu Vocab Builder ([pexels.com/api](https://www.pexels.com/api/), gratis 200 request/jam). Hanya dibaca di server. IPA & audio diambil dari Free Dictionary API (tanpa key). |
 
 Aturan: jangan commit `.env.local`, jangan pakai prefix `NEXT_PUBLIC_` untuk Groq atau secret apa pun.
 Tanpa variabel Supabase, aplikasi tetap jalan dalam mode tamu.
@@ -48,6 +49,14 @@ File migrasi (jalankan berurutan; semuanya aman dijalankan ulang, tidak menghapu
 
 - `supabase/migrations/20261016120000_learning_data.sql`
 - `supabase/migrations/20261016150000_tutor_sessions.sql` (riwayat Tanya Tutor)
+- `supabase/migrations/20261022120000_vocab_cards.sql` (koleksi kartu Vocab Builder)
+- `supabase/migrations/20261022150000_oxford_words.sql` (progres menu Oxford 3000)
+- `supabase/migrations/20261022170000_collocation_progress.sql` (progres menu Collocation)
+- `supabase/migrations/20261022190000_recall_sessions.sql` (riwayat Vocabulary Recall)
+- `supabase/migrations/20261022210000_vocab_spaced_repetition.sql` (jadwal pengulangan kata Oxford & collocation untuk Kosakata saya)
+- `supabase/migrations/20261022230000_call_sessions.sql` (riwayat & penilaian Telepon AI)
+- `supabase/migrations/20261023090000_practice_sessions.sql` (riwayat Latihan grammar, Susun kalimat, Evaluasi, dan mode ketik/dikte/buat kalimat)
+- `supabase/migrations/20261023120000_mistakes.sql` (Buku kesalahan + jenis latihan `mistakes` di practice_sessions)
 
 1. Buka *SQL Editor → New query* di dashboard Supabase.
 2. Tempel seluruh isi tiap file migrasi, klik **Run**. Supabase akan memperingatkan "destructive operations" karena ada
@@ -63,6 +72,13 @@ lewat `user_id = auth.uid()`):
 | `learning_settings` | Target harian, durasi sesi default, nama, tingkat AI | select, insert, update |
 | `review_items` | Materi/pola/frasa yang perlu diulang | select, insert, update, delete |
 | `tutor_sessions` | Riwayat sesi Tanya Tutor (pesan disimpan sebagai JSON), disimpan saat menekan "Sesi baru" | select, insert, update, delete |
+| `vocab_cards` | Kartu Vocab Builder (unik per `user_id + kata`), lengkap dengan IPA, audio, dan foto | select, insert, delete |
+| `oxford_words` | Menu Oxford 3000 (A1–B2): detail kata (arti, contoh, kata serupa — dibuat AI sekali) dan tanda sudah dipelajari | select, insert, update, delete |
+| `collocation_progress` | Menu Collocation (Latihan): detail collocation (arti, contoh, kesalahan umum, collocation terkait) dan tanda sudah dipelajari | select, insert, update, delete |
+| `practice_sessions` | Sesi latihan selesai (grammar, susun kalimat, evaluasi materi, ketik jawaban, dikte, buat kalimat): soal AI, jawaban, hasil, skor. Soal kosakata ikut menggeser jadwal ulang kata | select, insert, delete |
+| `mistakes` | Buku kesalahan: kesalahan dari Telepon AI & latihan per pola (lib/mistakes.ts); status terbuka/teratasi (latihan pola ≥ 80%)/diabaikan | select, insert, update, delete |
+| `call_sessions` | Panggilan Telepon AI yang selesai: transkrip, koreksi per kalimat, dan penilaian AI (kelancaran, grammar, kosakata, interaksi; huruf kapital & tanda baca tidak dinilai) | select, insert, delete |
+| `recall_sessions` | Sesi Vocabulary Recall yang selesai: soal AI (dari Oxford & Collocation), jawaban, dan skor — tampil di riwayat & Dashboard. Hasil tiap soal menggeser jadwal ulang di `oxford_words` / `collocation_progress` (kolom `review_step`, `due_at`; lihat `lib/srs.ts`) | select, insert, delete |
 
 ## 5. Membuat akun pribadi pertama
 

@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
   // Mengizinkan akses dev server dari perangkat lain di jaringan lokal (uji di ponsel).
   allowedDevOrigins: ['172.20.10.2'],
   poweredByHeader: false,
+  // Foto kartu Vocab Builder dari Pexels (lihat lib/vocab/enrich.ts).
+  images: {
+    remotePatterns: [{ protocol: 'https', hostname: 'images.pexels.com', pathname: '/photos/**' }],
+  },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

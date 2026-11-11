@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { VocabCard } from '@/lib/types';
 import { Volume2, RotateCw, Bookmark } from 'lucide-react';
-import { speakText } from '@/lib/speech';
+import { playPronunciation, speakText } from '@/lib/speech';
 import { cn } from '@/lib/utils';
 
 interface FlashcardProps {
@@ -23,12 +24,17 @@ export default function Flashcard({ card, onBookmark, isBookmarked, bookmarkDisa
     speakText(text, undefined, 'en-US');
   };
 
+  const handleSpeakWord = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    playPronunciation(card.word, card.audioUrl);
+  };
+
   const label = bookmarkLabel ?? (isBookmarked ? 'Hapus dari daftar review' : 'Simpan ke daftar review');
 
   return (
     <div
       onClick={() => setIsFlipped(!isFlipped)}
-      className="group relative h-80 w-full cursor-pointer perspective-[1000px]"
+      className={cn('group relative w-full cursor-pointer perspective-[1000px]', card.image ? 'h-[26rem]' : 'h-80')}
     >
       <div
         className={cn(
@@ -73,9 +79,9 @@ export default function Flashcard({ card, onBookmark, isBookmarked, bookmarkDisa
               )}
               <button
                 type="button"
-                onClick={(e) => handleSpeak(e, card.word)}
+                onClick={handleSpeakWord}
                 className="rounded-lg bg-accent-soft p-2 text-accent transition-colors hover:bg-accent hover:text-accent-fg"
-                title="Ucapkan kata"
+                title={card.audioUrl ? 'Dengar pengucapan asli' : 'Ucapkan kata'}
                 aria-label={`Ucapkan ${card.word}`}
               >
                 <Volume2 className="h-4 w-4" />
@@ -83,15 +89,37 @@ export default function Flashcard({ card, onBookmark, isBookmarked, bookmarkDisa
             </div>
           </div>
 
+          {/* Photo (Pexels) */}
+          {card.image && (
+            <div className="relative mt-3 h-36 shrink-0 overflow-hidden rounded-xl bg-surface-muted">
+              <Image
+                src={card.image.url}
+                alt={card.image.alt || card.word}
+                fill
+                sizes="(min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
+                className="object-cover"
+              />
+              <a
+                href={card.image.creditUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-1.5 bottom-1.5 max-w-[85%] truncate rounded bg-black/55 px-1.5 py-0.5 text-[10px] text-white hover:bg-black/70"
+              >
+                Foto: {card.image.credit} / Pexels
+              </a>
+            </div>
+          )}
+
           {/* Main Word */}
           <div className="my-auto text-center">
             <span className="mb-1 block font-mono text-xs text-muted">
-              [{card.phonetic}] • {card.partOfSpeech}
+              {card.phonetic && `[${card.phonetic}] • `}{card.partOfSpeech}
             </span>
             <h3 className="text-2xl font-bold tracking-tight break-words text-fg transition-colors group-hover:text-accent sm:text-3xl">
               {card.word}
             </h3>
-            <p className="mx-auto mt-3 line-clamp-3 max-w-xs text-xs text-muted">
+            <p className={cn('mx-auto mt-3 max-w-xs text-xs text-muted', card.image ? 'line-clamp-2' : 'line-clamp-3')}>
               {card.definitionEn}
             </p>
           </div>

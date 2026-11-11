@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowRight, BookOpen, Brain, Mic, Puzzle, Repeat, SpellCheck } from 'lucide-react';
+import { ArrowRight, BookOpen, Brain, Link2, Mic, NotebookPen, Puzzle, Repeat, SpellCheck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { ActivityType } from '@/types/curriculum';
+import { buttonClasses } from '@/components/ui/button';
 import { Card, CardHeader } from '@/components/ui/card';
 import { Badge, PageHeader, Skeleton } from '@/components/ui/feedback';
 import { getDueReviews, getOpenReviews } from '@/lib/progress';
@@ -10,30 +12,59 @@ import { useAppData, useNow } from '@/lib/storage/hooks';
 import { ExerciseContainer } from './components/exercise-container';
 import { ReviewReminder } from './components/review-reminder';
 
-const PRACTICE_TYPES: { id: string; title: string; description: string; icon: LucideIcon }[] = [
+const PRACTICE_TYPES: {
+  id: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  href: string;
+  cta: string;
+  type: ActivityType;
+}[] = [
   {
     id: 'grammar',
     title: 'Latihan grammar',
-    description: 'Latihan pola grammar per materi, dari dasar hingga lanjutan.',
+    description: 'Soal AI dari pola grammar materi yang kamu pilih: pilihan ganda, isi bagian kosong, perbaiki kalimat.',
     icon: SpellCheck,
+    href: '/latihan/grammar',
+    cta: 'Mulai latihan grammar',
+    type: 'exercise',
   },
   {
     id: 'sentence-building',
     title: 'Sentence building',
-    description: 'Menyusun kalimat bahasa Inggris langsung dari ide, tanpa menerjemahkan kata per kata.',
+    description: 'Susun kata menjadi kalimat dan terjemahkan kalimat Indonesia ke Inggris (dinilai AI).',
     icon: Puzzle,
+    href: '/latihan/kalimat',
+    cta: 'Mulai susun kalimat',
+    type: 'exercise',
   },
   {
     id: 'vocabulary-recall',
     title: 'Vocabulary recall',
-    description: 'Mengingat kembali kosakata dan natural expressions secara aktif.',
+    description: 'Kosakata Oxford 3000 & collocation: pilihan ganda, ketik jawaban, dikte, dan buat kalimat sendiri.',
     icon: Brain,
+    href: '/latihan/recall',
+    cta: 'Mulai Vocabulary Recall',
+    type: 'recall',
+  },
+  {
+    id: 'mistakes',
+    title: 'Buku kesalahan',
+    description: 'Kesalahanmu dari Telepon AI dan latihan, dikelompokkan per pola, lalu dilatih ulang dengan soal khusus.',
+    icon: NotebookPen,
+    href: '/kesalahan',
+    cta: 'Buka Buku kesalahan',
+    type: 'recall',
   },
   {
     id: 'evaluation',
     title: 'Evaluasi',
-    description: 'Evaluasi akhir materi. Skor tersimpan di Progres Saya.',
+    description: '10 soal campuran untuk menguji satu materi. Nilainya tersimpan di riwayat dan Progres Saya.',
     icon: BookOpen,
+    href: '/latihan/evaluasi',
+    cta: 'Mulai evaluasi',
+    type: 'evaluation',
   },
 ];
 
@@ -43,6 +74,12 @@ const EXISTING_TOOLS = [
     title: 'Vocab & Idiom Builder',
     description: 'Flashcard kosakata yang dibuat AI per level CEFR.',
     icon: BookOpen,
+  },
+  {
+    href: '/collocations',
+    title: 'Collocation',
+    description: '1.000 pasangan kata yang lazim (make a decision, heavy rain) dengan contoh dan suara.',
+    icon: Link2,
   },
   {
     href: '/pronunciation',
@@ -60,7 +97,7 @@ export function LatihanView() {
     <div className="space-y-8">
       <PageHeader
         title="Latihan"
-        description="Tempat latihan grammar, sentence building, vocabulary recall, dan evaluasi. Bank soal akan ditambahkan bersama konten kurikulum."
+        description="Latihan grammar, sentence building, vocabulary recall, dan evaluasi. Soal dibuat AI dari materi dan kosakata yang sedang kamu pelajari; riwayatnya tersimpan."
       />
 
       <section id="review" className="scroll-mt-20">
@@ -96,14 +133,19 @@ export function LatihanView() {
               <ExerciseContainer
                 key={type.id}
                 title={type.title}
-                type={type.id === 'evaluation' ? 'evaluation' : type.id === 'vocabulary-recall' ? 'recall' : 'exercise'}
+                type={type.type}
                 description={
                   <span className="flex gap-2">
                     <Icon className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden />
                     {type.description}
                   </span>
                 }
-              />
+              >
+                <Link href={type.href} className={buttonClasses('primary', 'sm')}>
+                  {type.cta}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </ExerciseContainer>
             );
           })}
         </div>

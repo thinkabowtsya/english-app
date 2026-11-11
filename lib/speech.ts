@@ -1,4 +1,6 @@
 // Web Speech API helper for STT (webkitSpeechRecognition) and TTS (SpeechSynthesis)
+import { splitForTts, type VoicePreference } from './tts';
+import { getSpeech, getVoicePreference, playNatural, type Playback } from './tts-client';
 
 export interface SpeechRecognitionOptions {
   onResult: (transcript: string, isFinal: boolean) => void;
@@ -55,8 +57,46 @@ export function createSpeechRecognizer(options: SpeechRecognitionOptions) {
   return recognition;
 }
 
+/** Rekaman/suara natural yang sedang diputar (dihentikan oleh stopSpeaking atau suara berikutnya). */
+let current: Playback | null = null;
+
+/** Putar rekaman pengucapan asli bila ada; jika tidak ada atau gagal diputar, pakai speakText. */
+export function playPronunciation(text: string, audioUrl?: string) {
+  if (typeof window === 'undefined') return;
+  if (!audioUrl) return speakText(text, undefined, 'en-US');
+  stopSpeaking();
+  const audio = new Audio(audioUrl);
+  current = { stop: () => audio.pause() };
+  audio.play().catch(() => speakText(text, undefined, 'en-US'));
+}
+
+/**
+ * Ucapkan teks. Bahasa Inggris memakai suara natural Groq Orpheus (lewat /api/tts, di-cache)
+ * kecuali pengguna memilih "Suara browser" di Pengaturan; bila gagal, otomatis kembali ke
+ * suara browser untuk bagian yang belum terucap.
+ */
 export function speakText(text: string, onEnd?: () => void, voiceLang: string = 'en-US') {
-  if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+  if (typeof window === 'undefined') return;
+  stopSpeaking();
+  const voice = getVoicePreference();
+  if (voice !== 'browser' && voiceLang.toLowerCase().startsWith('en') && typeof Audio !== 'undefined') {
+    current = playNatural(text, voice, () => onEnd?.(), (remaining) => speakWithBrowser(remaining, onEnd, voiceLang));
+    return;
+  }
+  speakWithBrowser(text, onEnd, voiceLang);
+}
+
+/** Putar contoh dengan suara tertentu (untuk "Coba suara" di Pengaturan sebelum disimpan). */
+export function previewVoice(text: string, voice: VoicePreference) {
+  if (typeof window === 'undefined') return;
+  stopSpeaking();
+  if (voice === 'browser') return speakWithBrowser(text);
+  current = playNatural(text, voice, () => {}, (remaining) => speakWithBrowser(remaining));
+}
+
+/** Suara bawaan browser (speechSynthesis) — cadangan bila suara natural tidak tersedia. */
+function speakWithBrowser(text: string, onEnd?: () => void, voiceLang: string = 'en-US') {
+  if (!('speechSynthesis' in window)) {
     console.warn('SpeechSynthesis is not supported in this environment');
     onEnd?.();
     return;
@@ -93,6 +133,8 @@ export function speakText(text: string, onEnd?: () => void, voiceLang: string = 
 }
 
 export function stopSpeaking() {
+  current?.stop();
+  current = null;
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }
@@ -120,43 +162,102 @@ export interface SpeechQueue {
 /**
  * Antrean text-to-speech untuk panggilan suara: kalimat diucapkan berurutan begitu tersedia
  * (tidak perlu menunggu seluruh balasan). `onIdle` dipanggil saat antrean selesai.
+ *
+ * Memakai suara natural Groq Orpheus (sesuai pilihan di Pengaturan): audio tiap kalimat langsung
+ * diambil saat kalimat masuk antrean, jadi kalimat berikutnya siap selagi kalimat sebelumnya
+ * diputar. Bila Orpheus gagal, sisa panggilan memakai suara browser.
  */
 export function createSpeechQueue(options: { onStart?: () => void; onIdle?: () => void; lang?: string } = {}): SpeechQueue {
-  let pending = 0;
+  const lang = options.lang ?? 'en-US';
   let generation = 0;
-  let texts: string[] = [];
-  const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+  let items: { text: string; audio: Promise<Blob> | null }[] = [];
+  let playing = false;
+  // Setelah Orpheus gagal sekali, sisa panggilan langsung memakai suara browser agar tidak tersendat.
+  let browserOnly = false;
+  let interrupt: (() => void) | null = null;
+  const browserSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+  const speakBrowser = (text: string) =>
+    new Promise<void>((resolve) => {
+      if (!browserSupported) return resolve();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = lang;
+      utterance.rate = 1.0;
+      const voice = pickEnglishVoice();
+      if (voice) utterance.voice = voice;
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      interrupt = () => resolve();
+      window.speechSynthesis.speak(utterance);
+    });
+
+  const playBlob = (blob: Blob) =>
+    new Promise<boolean>((resolve) => {
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      const finish = (ok: boolean) => {
+        URL.revokeObjectURL(url);
+        resolve(ok);
+      };
+      audio.onended = () => finish(true);
+      audio.onerror = () => finish(false);
+      interrupt = () => {
+        audio.pause();
+        finish(true);
+      };
+      audio.play().catch(() => finish(false));
+    });
+
+  async function pump(gen: number) {
+    playing = true;
+    while (gen === generation && items.length > 0) {
+      const item = items[0];
+      let played = false;
+      if (item.audio && !browserOnly) {
+        try {
+          const blob = await item.audio;
+          if (gen !== generation) return;
+          played = await playBlob(blob);
+        } catch {
+          browserOnly = true;
+        }
+      }
+      if (gen !== generation) return;
+      if (!played) await speakBrowser(item.text);
+      if (gen !== generation) return;
+      items = items.slice(1);
+    }
+    interrupt = null;
+    playing = false;
+    options.onIdle?.();
+  }
 
   return {
     enqueue(text) {
       const clean = text.trim();
-      if (!clean || !supported) return;
-      const gen = generation;
-      const utterance = new SpeechSynthesisUtterance(clean);
-      utterance.lang = options.lang ?? 'en-US';
-      utterance.rate = 1.0;
-      const voice = pickEnglishVoice();
-      if (voice) utterance.voice = voice;
-      const done = () => {
-        if (gen !== generation) return; // milik antrean yang sudah dibatalkan
-        pending = Math.max(0, pending - 1);
-        texts = texts.slice(1);
-        if (pending === 0) options.onIdle?.();
-      };
-      utterance.onend = done;
-      utterance.onerror = done;
-      if (pending === 0) options.onStart?.();
-      pending++;
-      texts.push(clean);
-      window.speechSynthesis.speak(utterance);
+      if (!clean || typeof window === 'undefined') return;
+      const voice = getVoicePreference();
+      const natural = voice !== 'browser' && !browserOnly && lang.toLowerCase().startsWith('en');
+      for (const chunk of splitForTts(clean)) {
+        const audio = natural ? getSpeech(chunk, voice) : null;
+        // Kegagalan ditangani saat giliran diputar; cegah peringatan "unhandled rejection".
+        audio?.catch(() => {});
+        items.push({ text: chunk, audio });
+      }
+      if (!playing && items.length > 0) {
+        options.onStart?.();
+        void pump(generation);
+      }
     },
     cancel() {
       generation++;
-      pending = 0;
-      texts = [];
-      if (supported) window.speechSynthesis.cancel();
+      items = [];
+      playing = false;
+      interrupt?.();
+      interrupt = null;
+      if (browserSupported) window.speechSynthesis.cancel();
     },
-    spokenText: () => texts.join(' '),
-    isBusy: () => pending > 0,
+    spokenText: () => items.map((i) => i.text).join(' '),
+    isBusy: () => playing || items.length > 0,
   };
 }

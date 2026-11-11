@@ -11,6 +11,9 @@ import { ContinueLearning } from './components/continue-learning';
 import { DailyGoalCard } from './components/daily-goal-card';
 import { DailyTimer } from './components/daily-timer';
 import { ProgressSummary } from './components/progress-summary';
+import { MistakesCard } from './components/mistakes-card';
+import { RecallHistoryCard } from './components/recall-history-card';
+import { VocabProgressCard } from './components/vocab-progress-card';
 import { Recommendations } from './components/recommendations';
 
 const dateFormat = new Intl.DateTimeFormat('id-ID', {
@@ -76,6 +79,9 @@ export function DashboardView() {
         <ContinueLearning data={data} className="lg:col-start-3 lg:row-start-2" />
         <Recommendations items={recommendations} className="lg:col-start-3 lg:row-start-3" />
         <ProgressSummary data={data} todayKey={todayKey} className="lg:col-span-2 lg:col-start-1 lg:row-start-3" />
+        <VocabProgressCard className="lg:col-span-2 lg:col-start-1 lg:row-start-4" />
+        <MistakesCard className="lg:col-span-2 lg:col-start-1 lg:row-start-5" />
+        <RecallHistoryCard className="lg:col-span-2 lg:col-start-1 lg:row-start-6" />
       </div>
     </div>
   );

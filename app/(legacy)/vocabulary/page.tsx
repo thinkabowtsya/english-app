@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { VocabCard } from '@/lib/types';
 import Flashcard from '@/components/vocabulary/flashcard';
-import { BookOpen, RefreshCw, Bookmark, HelpCircle, CheckCircle, XCircle, Award, PartyPopper, Trash2 } from 'lucide-react';
+import { BookOpen, RefreshCw, Bookmark, HelpCircle, CheckCircle, XCircle, Award, PartyPopper, Trash2, Library } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -14,14 +14,23 @@ import { addReview, removeReview } from '@/lib/storage/actions';
 import { useAppData } from '@/lib/storage/hooks';
 import { cn } from '@/lib/utils';
 
-const CATEGORIES = ['Daily', 'Business', 'Travel', 'Academic', 'Idioms & Slang'] as const;
-const LEVELS = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as const;
+import { VOCAB_CATEGORIES as CATEGORIES, VOCAB_LEVELS as LEVELS } from '@/lib/vocab/cards';
 
 const TABS = [
   { id: 'cards', label: 'Kartu', icon: BookOpen },
+  { id: 'collection', label: 'Koleksi', icon: Library },
   { id: 'quiz', label: 'Kuis', icon: HelpCircle },
   { id: 'bookmarks', label: 'Tersimpan', icon: Bookmark },
 ] as const;
+
+type TabId = typeof TABS[number]['id'];
+/** Lihat app/api/vocabulary/route.ts. */
+type Storage = 'saved' | 'guest' | 'unavailable';
+
+const STORAGE_NOTICE: Record<Exclude<Storage, 'saved'>, string> = {
+  guest: 'Kamu belum login, jadi kartu ini tidak disimpan ke Koleksi.',
+  unavailable: 'Kartu tidak dapat disimpan ke Koleksi. Pastikan migrasi vocab_cards sudah dijalankan di Supabase.',
+};
 
 export default function VocabularyPage() {
   const [selectedCategory, setSelectedCategory] = useState<typeof CATEGORIES[number]>('Business');
@@ -29,7 +38,12 @@ export default function VocabularyPage() {
   const [cards, setCards] = useState<VocabCard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'cards' | 'quiz' | 'bookmarks'>('cards');
+  const [activeTab, setActiveTab] = useState<TabId>('cards');
+  const [storage, setStorage] = useState<Storage>('saved');
+
+  // Koleksi: kartu yang sudah tersimpan di Supabase untuk level & kategori terpilih.
+  // `key` menandai filter yang dimuat; selama berbeda dengan filter aktif, koleksi dianggap sedang dimuat.
+  const [collection, setCollection] = useState<{ key: string; items: VocabCard[]; storage: Storage; error: string | null } | null>(null);
 
   // Bookmark = frasa di daftar review (kind 'phrase', source 'manual'), tersimpan di localStorage.
   const data = useAppData();
@@ -43,6 +57,9 @@ export default function VocabularyPage() {
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
   const [reloadKey, setReloadKey] = useState(0);
+  const [collectionReload, setCollectionReload] = useState(0);
+  // Dimuat ulang setiap tab Koleksi dibuka agar kartu dari set terbaru ikut muncul.
+  const collectionKey = `${selectedCategory}|${selectedLevel}|${collectionReload}`;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,6 +75,7 @@ export default function VocabularyPage() {
           throw new Error(typeof body?.error === 'string' ? body.error : 'Gagal memuat kosakata. Coba lagi nanti.');
         }
         setCards(body.items);
+        setStorage(body.storage ?? 'saved');
         setLoadError(null);
       })
       .catch(err => {
@@ -70,6 +88,28 @@ export default function VocabularyPage() {
       });
     return () => controller.abort();
   }, [selectedCategory, selectedLevel, reloadKey]);
+
+  useEffect(() => {
+    if (activeTab !== 'collection') return;
+    const controller = new AbortController();
+    const params = new URLSearchParams({ category: selectedCategory, level: selectedLevel });
+    fetch(`/api/vocabulary?${params}`, { signal: controller.signal })
+      .then(async res => {
+        const body = await res.json().catch(() => null);
+        if (!res.ok || !Array.isArray(body?.items)) {
+          throw new Error(typeof body?.error === 'string' ? body.error : 'Gagal memuat koleksi. Coba lagi nanti.');
+        }
+        setCollection({ key: collectionKey, items: body.items, storage: body.storage ?? 'saved', error: null });
+      })
+      .catch(err => {
+        if (controller.signal.aborted) return;
+        const message = err instanceof Error ? err.message : 'Gagal memuat koleksi. Coba lagi nanti.';
+        setCollection({ key: collectionKey, items: [], storage: 'saved', error: message });
+      });
+    return () => controller.abort();
+  }, [activeTab, collectionKey, selectedCategory, selectedLevel]);
+
+  const loadedCollection = collection?.key === collectionKey ? collection : null;
 
   const bookmarkState = (card: VocabCard) => {
     const existing = findOpenPhrase(reviews, card.word);
@@ -145,6 +185,24 @@ export default function VocabularyPage() {
     setSelectedOption(null);
   };
 
+  const renderCardGrid = (list: VocabCard[]) => (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {list.map((card) => {
+        const { existing, locked, label } = bookmarkState(card);
+        return (
+          <Flashcard
+            key={card.id || card.word}
+            card={card}
+            onBookmark={toggleBookmark}
+            isBookmarked={!!existing}
+            bookmarkDisabled={locked}
+            bookmarkLabel={label}
+          />
+        );
+      })}
+    </div>
+  );
+
   const pill = (active: boolean) =>
     cn(
       'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
@@ -160,7 +218,7 @@ export default function VocabularyPage() {
       />
 
       {/* View Mode Tabs */}
-      <div role="tablist" aria-label="Mode tampilan" className="grid grid-cols-3 gap-1 rounded-xl border border-line bg-surface p-1 sm:inline-grid">
+      <div role="tablist" aria-label="Mode tampilan" className="grid grid-cols-2 gap-1 min-[420px]:grid-cols-4 rounded-xl border border-line bg-surface p-1 sm:inline-grid">
         {TABS.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -170,6 +228,7 @@ export default function VocabularyPage() {
             onClick={() => {
               setActiveTab(id);
               if (id === 'quiz') resetQuiz();
+              if (id === 'collection') setCollectionReload(k => k + 1);
             }}
             className={cn(
               'flex items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium transition-colors sm:px-3',
@@ -186,7 +245,7 @@ export default function VocabularyPage() {
       </div>
 
       {/* Filters Bar */}
-      {activeTab === 'cards' && (
+      {(activeTab === 'cards' || activeTab === 'collection') && (
         <Card className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
           {/* Category Pills */}
           <div className="flex flex-wrap items-center gap-1.5">
@@ -232,10 +291,12 @@ export default function VocabularyPage() {
               ))}
             </div>
 
-            <Button size="sm" variant="secondary" onClick={reload} disabled={isLoading}>
-              <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
-              Buat set baru
-            </Button>
+            {activeTab === 'cards' && (
+              <Button size="sm" variant="secondary" onClick={reload} disabled={isLoading}>
+                <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
+                Buat set baru
+              </Button>
+            )}
           </div>
         </Card>
       )}
@@ -264,21 +325,48 @@ export default function VocabularyPage() {
           ) : cards.length === 0 ? (
             <EmptyState icon={<BookOpen className="h-6 w-6" />} title="Belum ada kartu" description="Pilih kategori & level lalu buat set baru." />
           ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {cards.map((card) => {
-                const { existing, locked, label } = bookmarkState(card);
-                return (
-                  <Flashcard
-                    key={card.id || card.word}
-                    card={card}
-                    onBookmark={toggleBookmark}
-                    isBookmarked={!!existing}
-                    bookmarkDisabled={locked}
-                    bookmarkLabel={label}
-                  />
-                );
-              })}
+            <>
+              {storage !== 'saved' && <Alert tone="info">{STORAGE_NOTICE[storage]}</Alert>}
+              {renderCardGrid(cards)}
+            </>
+          )}
+        </>
+      )}
+
+      {/* COLLECTION (kartu tersimpan di Supabase) */}
+      {activeTab === 'collection' && (
+        <>
+          {!loadedCollection ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3" role="status" aria-label="Memuat koleksi">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-80 rounded-2xl" />
+              ))}
             </div>
+          ) : loadedCollection.error ? (
+            <Alert
+              tone="error"
+              title="Koleksi tidak dapat dimuat"
+              action={
+                <Button size="sm" variant="secondary" onClick={() => setCollectionReload(k => k + 1)}>
+                  Coba lagi
+                </Button>
+              }
+            >
+              {loadedCollection.error}
+            </Alert>
+          ) : loadedCollection.storage !== 'saved' ? (
+            <Alert tone="info">{STORAGE_NOTICE[loadedCollection.storage]}</Alert>
+          ) : loadedCollection.items.length === 0 ? (
+            <EmptyState
+              icon={<Library className="h-6 w-6" />}
+              title={`Belum ada kartu ${selectedLevel} · ${selectedCategory}`}
+              description="Setiap set baru di tab Kartu otomatis tersimpan di sini."
+            />
+          ) : (
+            <>
+              <p className="text-xs text-muted">{loadedCollection.items.length} kartu tersimpan untuk {selectedLevel} · {selectedCategory}.</p>
+              {renderCardGrid(loadedCollection.items)}
+            </>
           )}
         </>
       )}

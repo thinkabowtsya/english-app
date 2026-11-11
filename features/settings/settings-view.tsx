@@ -15,6 +15,7 @@ import { settingsSchema } from '@/lib/storage/schema';
 import { MAX_SESSION_MINUTES, MIN_SESSION_MINUTES } from '@/lib/timer';
 import { cn } from '@/lib/utils';
 import type { AppData, Settings, ThemePreference } from '@/types/learning';
+import { VoiceSettingsCard } from './voice-settings';
 
 const inputCls = 'h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm aria-[invalid=true]:border-danger';
 
@@ -55,6 +56,7 @@ export function SettingsView() {
             onSaved={(ok) => setSaved(ok ? 'ok' : 'failed')}
             onEdit={() => setSaved(null)}
           />
+          <VoiceSettingsCard />
           <LegacyImportCard />
           <DataSection data={data} signedIn={signedIn} />
           <Card className="lg:hidden">
