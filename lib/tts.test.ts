@@ -1,5 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { TTS_MAX_CHARS, splitForTts } from './tts';
+import {
+  TTS_COOLDOWN_DEFAULT_MS,
+  TTS_COOLDOWN_MAX_MS,
+  TTS_COOLDOWN_MIN_MS,
+  TTS_MAX_CHARS,
+  splitForTts,
+  ttsCooldownUntil,
+} from './tts';
+
+describe('ttsCooldownUntil', () => {
+  const now = Date.UTC(2026, 10, 11, 5, 0, 0);
+
+  it('membaca Retry-After dalam detik', () => {
+    expect(ttsCooldownUntil('600', now)).toBe(now + 600_000);
+  });
+
+  it('membaca Retry-After berupa tanggal HTTP', () => {
+    const date = new Date(now + 30 * 60_000).toUTCString();
+    expect(ttsCooldownUntil(date, now)).toBe(now + 30 * 60_000);
+  });
+
+  it('memakai jeda bawaan bila header kosong atau tidak terbaca', () => {
+    expect(ttsCooldownUntil(null, now)).toBe(now + TTS_COOLDOWN_DEFAULT_MS);
+    expect(ttsCooldownUntil('nanti', now)).toBe(now + TTS_COOLDOWN_DEFAULT_MS);
+  });
+
+  it('jeda dibatasi minimum dan maksimum', () => {
+    expect(ttsCooldownUntil('2', now)).toBe(now + TTS_COOLDOWN_MIN_MS);
+    expect(ttsCooldownUntil(String(48 * 3600), now)).toBe(now + TTS_COOLDOWN_MAX_MS);
+  });
+});
 
 describe('splitForTts', () => {
   it('teks pendek tetap satu potongan dan spasi dirapikan', () => {

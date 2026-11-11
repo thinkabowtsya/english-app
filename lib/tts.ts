@@ -22,6 +22,30 @@ export const TTS_VOICE_IDS = TTS_VOICES.map((v) => v.id) as [TtsVoice, ...TtsVoi
 /** Batas teks per permintaan ke server; teks panjang dipecah per kalimat di klien. */
 export const TTS_MAX_CHARS = 400;
 
+/** Jeda minimum/maksimum setelah kuota Orpheus habis (429) sebelum suara natural dicoba lagi. */
+export const TTS_COOLDOWN_MIN_MS = 60_000;
+export const TTS_COOLDOWN_MAX_MS = 12 * 60 * 60_000;
+/** Dipakai bila server tidak memberi Retry-After yang bisa dibaca. */
+export const TTS_COOLDOWN_DEFAULT_MS = 5 * 60_000;
+
+/**
+ * Hitung sampai kapan suara natural diistirahatkan dari header Retry-After
+ * (detik atau tanggal HTTP). Hasil dibatasi antara jeda minimum dan maksimum.
+ */
+export function ttsCooldownUntil(retryAfter: string | null | undefined, now: number): number {
+  let ms = TTS_COOLDOWN_DEFAULT_MS;
+  const value = retryAfter?.trim();
+  if (value) {
+    const seconds = Number(value);
+    if (Number.isFinite(seconds)) ms = seconds * 1000;
+    else {
+      const date = Date.parse(value);
+      if (Number.isFinite(date)) ms = date - now;
+    }
+  }
+  return now + Math.min(TTS_COOLDOWN_MAX_MS, Math.max(TTS_COOLDOWN_MIN_MS, ms));
+}
+
 /**
  * Pecah teks menjadi potongan ≤ `max` karakter di batas kalimat (lalu koma / spasi bila satu
  * kalimat terlalu panjang), agar teks panjang tetap bisa dibacakan berurutan.

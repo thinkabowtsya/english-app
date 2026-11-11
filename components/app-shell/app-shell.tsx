@@ -6,6 +6,7 @@ import { TimerController } from '@/features/timer/timer-controller';
 import { useCloudState } from '@/lib/storage/hooks';
 import { CloudDataLoader, GuestDataLoader, SyncStatusBanner } from './cloud-sync';
 import { MobileBottomNav, MobileTopBar, Sidebar } from './navigation';
+import { VoiceLimitNotice } from './voice-limit-notice';
 
 /**
  * Kerangka aplikasi — tampil penuh untuk semua pengguna, baik yang sudah login
@@ -35,6 +36,7 @@ export function AppShell({
         </main>
       </div>
       <MobileBottomNav />
+      <VoiceLimitNotice />
       {/* Timer dicatat setelah data siap: login → cloud sync selesai; tamu → localStorage langsung. */}
       {(userId ? cloud.userId === userId : true) && <TimerController />}
       <SessionSummaryDialog />

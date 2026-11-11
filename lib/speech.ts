@@ -1,6 +1,6 @@
 // Web Speech API helper for STT (webkitSpeechRecognition) and TTS (SpeechSynthesis)
-import { splitForTts, type VoicePreference } from './tts';
-import { getSpeech, getVoicePreference, playNatural, type Playback } from './tts-client';
+import { TTS_MAX_CHARS, splitForTts, type VoicePreference } from './tts';
+import { getSpeech, getVoicePreference, isNaturalVoiceLimited, playNatural, type Playback } from './tts-client';
 
 export interface SpeechRecognitionOptions {
   onResult: (transcript: string, isFinal: boolean) => void;
@@ -170,7 +170,8 @@ export interface SpeechQueue {
 export function createSpeechQueue(options: { onStart?: () => void; onIdle?: () => void; lang?: string } = {}): SpeechQueue {
   const lang = options.lang ?? 'en-US';
   let generation = 0;
-  let items: { text: string; audio: Promise<Blob> | null }[] = [];
+  // `prepared` = teks sudah dikunci & audionya sudah diminta (atau diputuskan pakai suara browser).
+  let items: { text: string; audio: Promise<Blob> | null; prepared: boolean }[] = [];
   let playing = false;
   // Setelah Orpheus gagal sekali, sisa panggilan langsung memakai suara browser agar tidak tersendat.
   let browserOnly = false;
@@ -208,15 +209,39 @@ export function createSpeechQueue(options: { onStart?: () => void; onIdle?: () =
       audio.play().catch(() => finish(false));
     });
 
+  /**
+   * Kunci item ke-`index`: gabungkan kalimat-kalimat berikutnya yang masih menunggu (selama ≤ batas
+   * TTS) lalu minta audionya sekali. Kuota Orpheus kecil (±100 permintaan/hari), jadi satu balasan
+   * beberapa kalimat cukup memakai 1–2 permintaan, bukan satu per kalimat.
+   */
+  const prepare = (index: number) => {
+    const item = items[index];
+    if (!item || item.prepared) return;
+    while (items[index + 1] && !items[index + 1].prepared && item.text.length + 1 + items[index + 1].text.length <= TTS_MAX_CHARS) {
+      item.text = `${item.text} ${items[index + 1].text}`;
+      items.splice(index + 1, 1);
+    }
+    item.prepared = true;
+    const voice = getVoicePreference();
+    if (voice !== 'browser' && !browserOnly && !isNaturalVoiceLimited() && lang.toLowerCase().startsWith('en')) {
+      item.audio = getSpeech(item.text, voice);
+      // Kegagalan ditangani saat giliran diputar; cegah peringatan "unhandled rejection".
+      item.audio.catch(() => {});
+    }
+  };
+
   async function pump(gen: number) {
     playing = true;
     while (gen === generation && items.length > 0) {
+      prepare(0);
       const item = items[0];
       let played = false;
       if (item.audio && !browserOnly) {
         try {
           const blob = await item.audio;
           if (gen !== generation) return;
+          // Selagi kalimat ini diputar, siapkan berikutnya (kalimat yang masuk sementara ikut digabung).
+          prepare(1);
           played = await playBlob(blob);
         } catch {
           browserOnly = true;
@@ -225,7 +250,7 @@ export function createSpeechQueue(options: { onStart?: () => void; onIdle?: () =
       if (gen !== generation) return;
       if (!played) await speakBrowser(item.text);
       if (gen !== generation) return;
-      items = items.slice(1);
+      items.shift();
     }
     interrupt = null;
     playing = false;
@@ -236,14 +261,8 @@ export function createSpeechQueue(options: { onStart?: () => void; onIdle?: () =
     enqueue(text) {
       const clean = text.trim();
       if (!clean || typeof window === 'undefined') return;
-      const voice = getVoicePreference();
-      const natural = voice !== 'browser' && !browserOnly && lang.toLowerCase().startsWith('en');
-      for (const chunk of splitForTts(clean)) {
-        const audio = natural ? getSpeech(chunk, voice) : null;
-        // Kegagalan ditangani saat giliran diputar; cegah peringatan "unhandled rejection".
-        audio?.catch(() => {});
-        items.push({ text: chunk, audio });
-      }
+      // Audio baru diminta saat giliran hampir tiba (prepare), agar kalimat yang menunggu bisa digabung.
+      for (const chunk of splitForTts(clean)) items.push({ text: chunk, audio: null, prepared: false });
       if (!playing && items.length > 0) {
         options.onStart?.();
         void pump(generation);

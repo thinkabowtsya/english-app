@@ -1,4 +1,4 @@
-import { DEFAULT_VOICE, TTS_VOICE_IDS, splitForTts, type TtsVoice, type VoicePreference } from './tts';
+import { DEFAULT_VOICE, TTS_VOICE_IDS, splitForTts, ttsCooldownUntil, type TtsVoice, type VoicePreference } from './tts';
 
 /**
  * Pemutar suara natural (Groq Orpheus lewat /api/tts) untuk lib/speech.ts.
@@ -34,6 +34,49 @@ export function subscribeVoicePreference(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+/*
+ * Jeda setelah kuota Orpheus habis (HTTP 429). Selama jeda, audio yang belum ada di cache
+ * langsung memakai suara browser tanpa memanggil server, jadi suara tidak tersendat dan
+ * kuota tidak terbuang. Disimpan per perangkat agar tetap berlaku setelah halaman dimuat ulang.
+ */
+const LIMIT_KEY = 'english-app:tts-limited-until';
+const limitListeners = new Set<() => void>();
+let limitedUntil = readLimitedUntil();
+
+function readLimitedUntil(): number {
+  try {
+    const value = Number(window.localStorage.getItem(LIMIT_KEY));
+    return Number.isFinite(value) && value > Date.now() ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function markLimited(retryAfter: string | null) {
+  limitedUntil = ttsCooldownUntil(retryAfter, Date.now());
+  try {
+    window.localStorage.setItem(LIMIT_KEY, String(limitedUntil));
+  } catch {
+    // Storage diblokir: jeda hanya berlaku sampai halaman ditutup.
+  }
+  for (const l of limitListeners) l();
+}
+
+/** Waktu (ms epoch) sampai suara natural diistirahatkan; 0 bila tidak sedang dijeda. */
+export function getNaturalVoiceLimitedUntil(): number {
+  if (limitedUntil && limitedUntil <= Date.now()) limitedUntil = 0;
+  return limitedUntil;
+}
+
+export function isNaturalVoiceLimited(): boolean {
+  return getNaturalVoiceLimitedUntil() > 0;
+}
+
+export function subscribeNaturalVoiceLimit(listener: () => void) {
+  limitListeners.add(listener);
+  return () => limitListeners.delete(listener);
+}
+
 async function cacheKey(voice: TtsVoice, text: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${voice}\n${text}`));
   const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -54,12 +97,14 @@ export function getSpeech(text: string, voice: TtsVoice): Promise<Blob> {
     const key = store ? await cacheKey(voice, text) : '';
     const cached = store ? await store.match(key).catch(() => undefined) : undefined;
     if (cached) return cached.blob();
+    if (isNaturalVoiceLimited()) throw new Error('tts limited');
 
     const res = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, voice }),
     });
+    if (res.status === 429) markLimited(res.headers.get('retry-after'));
     if (!res.ok) throw new Error(`tts ${res.status}`);
     const blob = await res.blob();
     if (store) await store.put(key, new Response(blob, { headers: { 'Content-Type': 'audio/wav' } })).catch(() => {});

@@ -91,7 +91,12 @@ export async function POST(req: Request) {
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
       console.warn(`[api/tts] Groq ${res.status}: ${detail.slice(0, 200)}`);
-      return jsonError(res.status === 429 ? 429 : 502, 'Suara natural sedang tidak tersedia.');
+      if (res.status === 429) {
+        // Kuota Orpheus (per menit/per hari) habis: teruskan Retry-After agar klien berhenti mencoba sementara.
+        const retryAfter = res.headers.get('retry-after');
+        return jsonError(429, 'Kuota suara natural sedang habis.', retryAfter ? { 'Retry-After': retryAfter } : undefined);
+      }
+      return jsonError(502, 'Suara natural sedang tidak tersedia.');
     }
     const audio = await res.arrayBuffer();
     cacheSet(key, audio);
