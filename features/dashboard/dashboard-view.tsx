@@ -15,6 +15,7 @@ import { MistakesCard } from './components/mistakes-card';
 import { RecallHistoryCard } from './components/recall-history-card';
 import { VocabProgressCard } from './components/vocab-progress-card';
 import { Recommendations } from './components/recommendations';
+import { TodayPlanCard } from './components/today-plan-card';
 
 const dateFormat = new Intl.DateTimeFormat('id-ID', {
   weekday: 'long',
@@ -69,6 +70,11 @@ export function DashboardView() {
           now={now}
           remainingGoalMs={goal.remainingMs}
           className="lg:col-span-2 lg:col-start-1 lg:row-span-2 lg:row-start-1"
+        />
+        <TodayPlanCard
+          data={data}
+          todayKey={todayKey}
+          className="lg:col-start-3 lg:row-span-3 lg:row-start-4 lg:self-start"
         />
         <DailyGoalCard
           goal={goal}

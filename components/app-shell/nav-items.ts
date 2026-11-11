@@ -1,6 +1,7 @@
 import {
   BookMarked,
   BookOpen,
+  CalendarDays,
   ChartLine,
   Dumbbell,
   GraduationCap,
@@ -26,6 +27,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: '/', label: 'Dashboard', shortLabel: 'Dashboard', icon: LayoutDashboard, primary: true },
+  { href: '/kalender', label: 'Kalender', shortLabel: 'Kalender', icon: CalendarDays, primary: true },
   { href: '/materi', label: 'Materi', shortLabel: 'Materi', icon: BookOpen, primary: true },
   {
     href: '/latihan',

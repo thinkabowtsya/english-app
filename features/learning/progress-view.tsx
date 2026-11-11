@@ -18,6 +18,7 @@ import {
 import { useAppData, useNow } from '@/lib/storage/hooks';
 import type { LearningSession } from '@/types/learning';
 import { ActivityChart } from './components/activity-chart';
+import { ActivityHeatmap } from './components/activity-heatmap';
 import { LessonStatusBadge, ProgressIndicator } from './components/progress-indicator';
 import { ReviewReminder } from './components/review-reminder';
 
@@ -73,6 +74,22 @@ export function ProgressView() {
         <Metric label="Hari aktif" value={`${getActiveDays(data.sessions).length}`} hint="min. 1 menit/hari" />
         <Metric label="Streak" value={`${streak.current} hari`} hint={`terpanjang ${streak.longest} hari`} />
       </dl>
+
+      <Card>
+        <CardHeader
+          title="Aktivitas setahun terakhir"
+          description={
+            <>
+              Makin hijau = makin dekat ke target {data.settings.dailyGoalMinutes} menit/hari atau tugas{' '}
+              <Link href="/kalender" className="text-accent hover:underline">
+                Kalender
+              </Link>{' '}
+              makin lengkap.
+            </>
+          }
+        />
+        <ActivityHeatmap data={data} todayKey={todayKey} />
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
