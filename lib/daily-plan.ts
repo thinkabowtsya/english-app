@@ -37,9 +37,9 @@ const SPEAKING: { title: string; detail: string; href: string }[] = [
   // Indeks = getDay(): 0 Minggu … 6 Sabtu.
   { title: 'Ulang Buku kesalahan', detail: 'Baca ulang 5 kesalahan, ucapkan versi yang benar.', href: '/kesalahan' },
   { title: 'Telepon AI', detail: 'Ngobrol 10 menit dengan AI, jawab dengan kalimat lengkap.', href: '/call' },
-  { title: 'Percakapan AI (role-play)', detail: 'Latihan situasi kerja: stand-up, menjelaskan bug.', href: '/percakapan' },
+  { title: 'Speak: 1 topik', detail: 'Latih frasa kunci, lalu selesaikan misi percakapan dengan AI.', href: '/speak' },
   { title: 'Telepon AI', detail: 'Ceritakan pekerjaanmu hari ini selama 10 menit.', href: '/call' },
-  { title: 'Latihan kalimat', detail: 'Buat dan perbaiki kalimat sendiri dengan bantuan AI.', href: '/latihan/kalimat' },
+  { title: 'Speak: 1 topik', detail: 'Ulangi topik dengan skor terendah sampai ≥ 70.', href: '/speak' },
   { title: 'Telepon AI', detail: 'Jelaskan satu masalah teknis: masalah → tindakan → hasil.', href: '/call' },
   { title: 'Recall', detail: 'Ingat & ucapkan ulang materi minggu ini tanpa melihat.', href: '/latihan/recall' },
 ];

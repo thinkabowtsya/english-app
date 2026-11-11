@@ -7,6 +7,7 @@ import {
   GraduationCap,
   LayoutDashboard,
   ListChecks,
+  Mic,
   MessagesSquare,
   NotebookPen,
   PhoneCall,
@@ -37,7 +38,8 @@ export const NAV_ITEMS: NavItem[] = [
     also: ['/vocabulary', '/pronunciation', '/collocations'],
     primary: true,
   },
-  { href: '/kosakata', label: 'Kosakata saya', shortLabel: 'Kosakata', icon: BookMarked, primary: true },
+  { href: '/speak', label: 'Speak', shortLabel: 'Speak', icon: Mic, primary: true },
+  { href: '/kosakata', label: 'Kosakata saya', shortLabel: 'Kosakata', icon: BookMarked },
   { href: '/oxford', label: 'Oxford 3000', shortLabel: 'Oxford', icon: ListChecks },
   { href: '/kesalahan', label: 'Buku kesalahan', shortLabel: 'Kesalahan', icon: NotebookPen },
   {
