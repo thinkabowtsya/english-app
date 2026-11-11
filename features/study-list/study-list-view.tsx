@@ -236,6 +236,69 @@ export function StudyListView({
         ? `Progres tidak dapat dimuat. Pastikan migrasi ${table} sudah dijalankan di Supabase.`
         : null;
 
+  /** Chip frasa/kata: klik untuk mendengar; bila kata ada di daftar ini, tombol kecil untuk membukanya. */
+  const renderChip = (text: string) => {
+    const target = groupOf.get(text.toLowerCase());
+    return (
+      <li key={text} className="inline-flex items-center rounded-full border border-line bg-surface text-xs">
+        <button
+          type="button"
+          onClick={() => playPronunciation(text)}
+          className="inline-flex items-center gap-1 rounded-full py-1 pr-2 pl-2.5 text-fg hover:bg-surface-muted"
+          aria-label={`Ucapkan ${text}`}
+          title="Dengarkan"
+        >
+          <Volume2 className="h-3 w-3 text-accent" aria-hidden />
+          {text}
+        </button>
+        {target && (
+          <button
+            type="button"
+            onClick={() => jumpTo(target)}
+            className="mr-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium text-accent hover:bg-accent-soft"
+            title="Buka di daftar"
+          >
+            buka
+          </button>
+        )}
+      </li>
+    );
+  };
+
+  /** Kata serupa & collocation dari Datamuse (bukan AI) — hanya untuk detail yang sudah memilikinya. */
+  const renderLinks = (detail: StudyDetail) => {
+    const links = detail.links;
+    if (!links) return null;
+    const aiWords = new Set(detail.similar.map((s) => s.word.toLowerCase()));
+    const similar = links.similar.filter((w) => !aiWords.has(w));
+    if (similar.length === 0 && links.collocations.length === 0) return null;
+    return (
+      <div className="space-y-3 rounded-lg border border-line px-3 py-2.5">
+        {links.collocations.map((g) => (
+          <div key={g.label}>
+            <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted uppercase">
+              Sering dipakai bersama · {g.label}
+            </p>
+            <ul className="flex flex-wrap gap-1.5">
+              {g.phrases.map(renderChip)}
+            </ul>
+          </div>
+        ))}
+        {similar.length > 0 && (
+          <div>
+            <p className="mb-1.5 text-[11px] font-semibold tracking-wide text-muted uppercase">Kata serupa lainnya</p>
+            <ul className="flex flex-wrap gap-1.5">
+              {similar.map(renderChip)}
+            </ul>
+          </div>
+        )}
+        <p className="text-[10px] text-muted">
+          Sumber: Datamuse (data pemakaian bahasa Inggris nyata). Belum tentu cocok untuk semua konteks — cek contoh di atas.
+        </p>
+      </div>
+    );
+  };
+
   const renderDetail = (item: StudyItem) => {
     const state = details[item.key];
     if (!state || state.status === 'loading') {
@@ -326,6 +389,8 @@ export function StudyListView({
             </ul>
           </div>
         )}
+
+        {renderLinks(detail)}
 
         <div className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
           <Button

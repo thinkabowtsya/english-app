@@ -2,6 +2,7 @@ import 'server-only';
 import type { Collocation } from '@/data/collocations/items';
 import type { OxfordWord } from '@/data/oxford/words';
 import { collocationDetailPrompt, findCollocation } from '@/lib/collocations';
+import { planForCollocation, planForWord } from '@/lib/datamuse';
 import { findOxfordWord, oxfordDetailPrompt } from '@/lib/oxford';
 import type { StudyListConfig } from './study-list-api';
 
@@ -14,6 +15,8 @@ export const OXFORD_LIST: StudyListConfig<OxfordWord> = {
   keyOf: (w) => w.word,
   prompt: oxfordDetailPrompt,
   withAudio: true,
+  // Kata serupa dari Datamuse hanya yang juga ada di Oxford 3000 (sesuai level pelajar).
+  linkPlan: (w) => ({ ...planForWord(w.word, w.pos), keepSimilar: (x) => findOxfordWord(x) !== undefined }),
 };
 
 export const COLLOCATION_LIST: StudyListConfig<Collocation> = {
@@ -24,4 +27,5 @@ export const COLLOCATION_LIST: StudyListConfig<Collocation> = {
   find: findCollocation,
   keyOf: (c) => c.text,
   prompt: collocationDetailPrompt,
+  linkPlan: (c) => planForCollocation(c.text, c.group),
 };

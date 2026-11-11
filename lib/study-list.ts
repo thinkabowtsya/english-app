@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { WordLinks } from './datamuse';
 
 /**
  * Bentuk bersama untuk menu daftar belajar (Oxford 3000, Collocation): detail satu item dibuat AI
@@ -17,6 +18,8 @@ export interface StudyDetail {
   mistake?: { wrong: string; note: string };
   /** MP3 pengucapan asli dari Free Dictionary API; tanpa ini dipakai TTS browser. */
   audioUrl?: string;
+  /** Kata serupa & collocation dari Datamuse (bukan AI). Tidak ada pada detail lama sampai dibuka ulang. */
+  links?: WordLinks;
 }
 
 /** 'saved' (Supabase), 'guest' (belum login), 'unavailable' (Supabase/migrasi belum siap). */

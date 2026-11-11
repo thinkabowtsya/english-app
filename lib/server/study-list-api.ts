@@ -6,7 +6,9 @@ import { createServerSupabase } from '@/lib/supabase/server';
 import { learnedColumns } from '@/lib/srs';
 import { parseAiStudyDetail, type StudyDetail, type StudyStorage } from '@/lib/study-list';
 import { lookupPronunciation } from '@/lib/vocab/enrich';
+import type { LinkPlan, WordLinks } from '@/lib/datamuse';
 import { requireUser } from './auth';
+import { lookupWordLinks } from './datamuse';
 import { jsonError, readJsonBody } from './http';
 import { enforceAiRateLimit } from './rate-limit';
 
@@ -29,6 +31,8 @@ export interface StudyListConfig<T> {
   prompt: (entry: T) => string;
   /** Ambil audio asli dari Free Dictionary (hanya berguna untuk satu kata). */
   withAudio?: boolean;
+  /** Rencana query Datamuse untuk kata serupa & collocation (opsional). */
+  linkPlan?: (entry: T) => LinkPlan;
 }
 
 const itemSchema = z.object({ item: z.string().min(1).max(120) });
@@ -104,6 +108,9 @@ export function createDetailHandler<T>(config: StudyListConfig<T>) {
     const item = config.keyOf(entry);
 
     const supabase = auth.isGuest ? null : await createServerSupabase();
+    const links = (): Promise<{ links: WordLinks; complete: boolean } | null> =>
+      config.linkPlan ? lookupWordLinks(config.linkPlan(entry)) : Promise.resolve(null);
+
     if (supabase) {
       const { data, error } = await supabase
         .from(config.table)
@@ -111,7 +118,22 @@ export function createDetailHandler<T>(config: StudyListConfig<T>) {
         .eq(config.column, item)
         .maybeSingle();
       if (error) logStoreError(config.name, 'membaca detail', error);
-      else if (data?.detail) return NextResponse.json({ detail: data.detail as StudyDetail });
+      else if (data?.detail) {
+        const saved = data.detail as StudyDetail;
+        if (saved.links || !config.linkPlan) return NextResponse.json({ detail: saved });
+        // Detail lama (sebelum Datamuse): lengkapi sekali, simpan bila semua query berhasil.
+        const found = await links();
+        if (!found) return NextResponse.json({ detail: saved });
+        const detail: StudyDetail = { ...saved, links: found.links };
+        if (found.complete) {
+          const { error: saveError } = await supabase
+            .from(config.table)
+            .update({ detail })
+            .eq(config.column, item);
+          if (saveError) logStoreError(config.name, 'menyimpan data Datamuse', saveError);
+        }
+        return NextResponse.json({ detail });
+      }
     }
 
     const limited = enforceAiRateLimit(req, auth.userId);
@@ -119,8 +141,9 @@ export function createDetailHandler<T>(config: StudyListConfig<T>) {
     if (!isGroqConfigured()) return jsonError(503, 'AI belum dikonfigurasi di server.');
 
     let detail: StudyDetail | null;
+    let linksComplete = true;
     try {
-      const [completion, pron] = await Promise.all([
+      const [completion, pron, found] = await Promise.all([
         getGroq().chat.completions.create({
           model: MAIN_MODEL,
           messages: [
@@ -132,9 +155,14 @@ export function createDetailHandler<T>(config: StudyListConfig<T>) {
           ...modelOptions(),
         }),
         config.withAudio ? lookupPronunciation(item) : Promise.resolve({ audioUrl: undefined }),
+        links(),
       ]);
       detail = parseAiStudyDetail(JSON.parse(completion.choices[0]?.message?.content || '{}'), item);
       if (detail && pron.audioUrl) detail.audioUrl = pron.audioUrl;
+      if (detail && found) {
+        detail.links = found.links;
+        linksComplete = found.complete;
+      }
     } catch (error: unknown) {
       console.error(`[${config.name}]`, error instanceof Error ? error.message : error);
       return jsonError(502, 'Gagal membuat penjelasan. Coba lagi nanti.');
@@ -142,9 +170,11 @@ export function createDetailHandler<T>(config: StudyListConfig<T>) {
     if (!detail) return jsonError(502, 'Penjelasan dari AI tidak lengkap. Coba lagi.');
 
     if (supabase) {
+      // Data Datamuse yang belum lengkap (ada query gagal) tidak disimpan, agar dilengkapi saat dibuka lagi.
+      const toSave: StudyDetail = linksComplete ? detail : { ...detail, links: undefined };
       const { error } = await supabase
         .from(config.table)
-        .upsert({ [config.column]: item, detail }, { onConflict: `user_id,${config.column}` });
+        .upsert({ [config.column]: item, detail: toSave }, { onConflict: `user_id,${config.column}` });
       if (error) logStoreError(config.name, 'menyimpan detail', error);
     }
     return NextResponse.json({ detail });
