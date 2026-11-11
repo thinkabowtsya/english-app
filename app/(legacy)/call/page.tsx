@@ -755,6 +755,8 @@ export default function VoiceCallStudioPage() {
                   ? 'Mikrofon dimatikan'
                   : isListening
                   ? 'Giliranmu — silakan bicara…'
+                  : micSupported && micError
+                  ? 'Mikrofon belum aktif — lihat pesan di bawah, atau ketik jawabanmu'
                   : micSupported
                   ? 'Menyiapkan mikrofon…'
                   : 'Panggilan aktif'}
