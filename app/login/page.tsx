@@ -25,8 +25,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <LoginForm next={safeNextPath(next)} />
           ) : (
             <Alert tone="warning" title="Supabase belum dikonfigurasi">
-              Isi NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY di .env.local (atau di environment
-              Netlify), lalu restart aplikasi.
+              Isi NEXT_PUBLIC_SUPABASE_URL dan NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY. Lokal: di .env.local, lalu restart
+              dev server. Netlify: di Site configuration → Environment variables, lalu jalankan ulang deploy (Clear
+              cache and deploy site) — nilai NEXT_PUBLIC_* ditanam saat build, jadi tanpa deploy ulang tidak berubah.
             </Alert>
           )}
         </div>
