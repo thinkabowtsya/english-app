@@ -54,3 +54,33 @@ export function isLikelyEcho(heard: string, aiSpeech: string): boolean {
 export function shouldBargeIn(heard: string, aiSpeech: string): boolean {
   return words(heard).length >= 2 && !isLikelyEcho(heard, aiSpeech);
 }
+
+export interface MicErrorInfo {
+  /** Pesan untuk pengguna; null = bukan masalah (mis. diam sejenak). */
+  message: string | null;
+  /** true = jangan dinyalakan ulang otomatis (perlu tindakan pengguna). */
+  fatal: boolean;
+}
+
+/** Terjemahkan kode error Web Speech Recognition menjadi pesan yang bisa ditindaklanjuti. */
+export function micErrorInfo(error: string): MicErrorInfo {
+  switch (error) {
+    case 'no-speech':
+    case 'aborted':
+      return { message: null, fatal: false };
+    case 'not-allowed':
+    case 'service-not-allowed':
+      return {
+        message: 'Izin mikrofon ditolak. Izinkan mikrofon untuk situs ini di pengaturan browser, lalu tekan tombol mikrofon.',
+        fatal: true,
+      };
+    case 'audio-capture':
+      return { message: 'Mikrofon tidak terdeteksi. Periksa mikrofon/headset, lalu tekan tombol mikrofon.', fatal: true };
+    case 'network':
+      return { message: 'Pengenalan suara butuh koneksi internet yang stabil. Mencoba lagi…', fatal: false };
+    case 'language-not-supported':
+      return { message: 'Browser ini tidak mendukung pengenalan suara bahasa Inggris.', fatal: true };
+    default:
+      return { message: `Mikrofon bermasalah (${error}). Mencoba lagi…`, fatal: false };
+  }
+}

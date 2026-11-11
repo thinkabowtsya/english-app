@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLikelyEcho, shouldBargeIn, takeSentences } from './voice-call';
+import { isLikelyEcho, micErrorInfo, shouldBargeIn, takeSentences } from './voice-call';
 
 describe('takeSentences', () => {
   it('mengambil kalimat lengkap dan menyisakan bagian yang belum selesai', () => {
@@ -40,5 +40,23 @@ describe('deteksi gema & barge-in', () => {
 
   it('tanpa ucapan AI, ucapan apa pun bukan gema', () => {
     expect(isLikelyEcho('hello there', '')).toBe(false);
+  });
+});
+
+describe('micErrorInfo', () => {
+  it('diam sejenak bukan masalah', () => {
+    expect(micErrorInfo('no-speech')).toEqual({ message: null, fatal: false });
+    expect(micErrorInfo('aborted').fatal).toBe(false);
+  });
+
+  it('izin ditolak & mikrofon tidak ada butuh tindakan pengguna', () => {
+    expect(micErrorInfo('not-allowed').fatal).toBe(true);
+    expect(micErrorInfo('audio-capture').fatal).toBe(true);
+  });
+
+  it('gangguan jaringan dicoba ulang', () => {
+    const info = micErrorInfo('network');
+    expect(info.fatal).toBe(false);
+    expect(info.message).toBeTruthy();
   });
 });
